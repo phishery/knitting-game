@@ -191,6 +191,9 @@ class KnitGraph {
       // Even rows (RS): left to right. Odd rows (WS): right to left.
       const isWrongSide = r % 2 === 1;
 
+      // Track how many points exist before this row so we can pin row-0 points
+      const pointsBefore = this.yarn.points.length;
+
       for (let ci = 0; ci < this.cols; ci++) {
         // On WS rows, traverse columns in reverse
         const c = isWrongSide ? (this.cols - 1 - ci) : ci;
@@ -222,6 +225,13 @@ class KnitGraph {
           cursor = this.makeCableRight(x, y, dirW, h, cursor);
         } else {
           cursor = this.makeKnit(x, y, dirW, h, cursor);
+        }
+      }
+
+      // Pin the top row so fabric hangs from the needles
+      if (r === 0) {
+        for (let i = pointsBefore; i < this.yarn.points.length; i++) {
+          this.yarn.points[i].locked = true;
         }
       }
     }
