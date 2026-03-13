@@ -669,8 +669,66 @@ export default function KnitGame() {
             </button>
           ))}
 
-          {/* Undo button */}
-          <div style={{ marginTop: 'auto', paddingTop: 6, flexShrink: 0 }}>
+          {/* Share + Undo buttons */}
+          <div style={{ marginTop: 'auto', paddingTop: 6, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+            <button onClick={() => {
+              const svgEl = svgContainerRef.current?.querySelector('svg');
+              if (!svgEl) return;
+              const clone = svgEl.cloneNode(true) as SVGSVGElement;
+              clone.setAttribute('width', String(CANVAS_W * 2));
+              clone.setAttribute('height', String(CANVAS_H * 2));
+              const serializer = new XMLSerializer();
+              const svgStr = serializer.serializeToString(clone);
+              const img = new Image();
+              img.onload = () => {
+                const c = document.createElement('canvas');
+                c.width = CANVAS_W * 2;
+                c.height = CANVAS_H * 2;
+                const ctx = c.getContext('2d');
+                if (!ctx) return;
+                ctx.fillStyle = '#FBF7F1';
+                ctx.fillRect(0, 0, c.width, c.height);
+                ctx.drawImage(img, 0, 0);
+                c.toBlob(async (blob) => {
+                  if (!blob) return;
+                  const file = new File([blob], 'knitcraft.png', { type: 'image/png' });
+                  if (navigator.share && navigator.canShare?.({ files: [file] })) {
+                    try {
+                      await navigator.share({ files: [file], title: 'My KnitCraft creation', text: `${totalRows} rows, ${score} pts!` });
+                    } catch { /* user cancelled */ }
+                  } else {
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = 'knitcraft.png';
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                  }
+                }, 'image/png');
+              };
+              img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
+            }}
+              style={{
+                width: 36, height: 36, borderRadius: 8,
+                background: '#FBF7F1',
+                border: '1.5px solid #C4B4A0',
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#7B6B5B', fontSize: 16,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+              }}
+              title="Share your fabric"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8" />
+                <polyline points="16 6 12 2 8 6" />
+                <line x1="12" y1="2" x2="12" y2="15" />
+              </svg>
+            </button>
+            <div style={{ fontSize: 7, color: '#A89B8B', textAlign: 'center' }}>
+              SHARE
+            </div>
+          </div>
+          <div>
             <button onClick={undo}
               disabled={!history.length}
               style={{
