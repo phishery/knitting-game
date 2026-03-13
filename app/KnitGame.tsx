@@ -443,7 +443,7 @@ export default function KnitGame() {
 
   return (
     <div style={{
-      height: '100vh', width: '100vw',
+      height: '100dvh', width: '100vw',
       background: 'linear-gradient(165deg, #F6EDE2 0%, #EDE2D4 45%, #E5DAC8 100%)',
       fontFamily: "'Georgia', 'Palatino', serif",
       display: 'flex', flexDirection: 'column',
@@ -533,6 +533,55 @@ export default function KnitGame() {
           </>
         )}
       </div>
+
+      {/* Row Guide — shows current row stitches when a pattern is active */}
+      {pattern.length > 0 && (() => {
+        const rowData = pattern[totalRows % pattern.length];
+        if (!rowData) return null;
+        // In reverse direction, display the row reversed
+        const displayRow = dir === 1 ? rowData : [...rowData].reverse();
+        return (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 2,
+            padding: '4px 12px', flexShrink: 0,
+            overflowX: 'auto', justifyContent: 'center',
+          }}>
+            {displayRow.map((s, i) => {
+              const done = i < curIdx;
+              const isCurrent = i === curIdx;
+              const c = PALETTE[s.color] || PALETTE[0];
+              return (
+                <div key={i} style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  opacity: done ? 0.3 : 1,
+                  transform: isCurrent ? 'scale(1.25)' : 'scale(1)',
+                  transition: 'transform 0.15s ease, opacity 0.15s ease',
+                  zIndex: isCurrent ? 1 : 0,
+                }}>
+                  <div style={{
+                    width: isCurrent ? 22 : 16,
+                    height: isCurrent ? 22 : 16,
+                    borderRadius: '50%',
+                    background: `radial-gradient(circle at 38% 35%, ${c.hi}, ${c.hex} 60%, ${c.shadow})`,
+                    border: isCurrent ? '2px solid #4A3A2A' : '1px solid #D4C4B0',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: isCurrent ? '0 1px 6px rgba(74,58,42,0.3)' : 'none',
+                  }}>
+                    <span style={{
+                      fontSize: isCurrent ? 10 : 7,
+                      fontWeight: 700,
+                      color: [0, 1, 5, 6, 8].includes(s.color) ? '#3A2A1A' : '#FFF',
+                      lineHeight: 1,
+                    }}>
+                      {s.type === PURL ? 'P' : 'K'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* Middle: Canvas + Yarn Colors */}
       <div style={{
