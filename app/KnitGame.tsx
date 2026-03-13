@@ -20,6 +20,7 @@ import {
 } from "./game-engine";
 import StitchSVG from "./StitchSVG";
 import YarnPhysics from "./YarnPhysics";
+import KnitLabEngine from "./KnitLabEngine";
 
 function getYarnColor(index: number): string {
   const c = YARN_COLORS[index % YARN_COLORS.length];
@@ -75,6 +76,40 @@ function initLevel(level: number, prevState?: Partial<GameState>): GameState {
 
 function getCurrentTargetRow(pattern: PatternDef, rowIndex: number): StitchType[] {
   return pattern.rows[rowIndex % pattern.rows.length];
+}
+
+// Convert game stitch types to KnitLab pattern codes
+function stitchToKnitLab(type: StitchType): string {
+  const map: Record<StitchType, string> = {
+    knit: "K",
+    purl: "P",
+    "yarn-over": "YO",
+    k2tog: "K2T",
+    ssk: "SSK",
+    m1r: "M1R",
+    m1l: "M1L",
+    slip: "K", // render as knit
+    "cable-left": "CL",
+    "cable-right": "CR",
+    "color-a": "K",
+    "color-b": "K",
+  };
+  return map[type] ?? "K";
+}
+
+// Build KnitLab pattern from completed rows + current row
+function buildFabricPattern(
+  completedRows: { stitches: Stitch[] }[],
+  currentRow: Stitch[],
+): string[][] {
+  const rows: string[][] = [];
+  for (const row of completedRows) {
+    rows.push(row.stitches.map(s => stitchToKnitLab(s.type)));
+  }
+  if (currentRow.length > 0) {
+    rows.push(currentRow.map(s => stitchToKnitLab(s.type)));
+  }
+  return rows;
 }
 
 let floatingIdCounter = 0;
@@ -350,37 +385,39 @@ export default function KnitGame() {
           })}
         </div>
 
-        {/* Fabric Area */}
+        {/* Fabric Area — KnitLab physics engine + current row */}
         <div className="flex-1 relative overflow-hidden" style={{ minHeight: 0 }}>
-          <div ref={fabricRef} className="absolute inset-0 overflow-y-auto pt-2 pb-1" style={{ top: 80 }}>
-            {/* Floating scores */}
-            {game.floatingScores.map((fs) => (
-              <div key={fs.id} className="score-fly absolute text-amber-500 font-bold text-sm pointer-events-none z-10" style={{ left: `${fs.x}%`, top: `${fs.y}%` }}>
-                +{fs.value}
-              </div>
-            ))}
-
-            {game.completedRows.length === 0 && game.currentRowStitches.length === 0 && (
-              <div className="flex items-center justify-center h-full text-amber-300 text-xs italic px-4 text-center">
-                Tap a stitch to begin!
-              </div>
-            )}
-
-            <div className="flex flex-col-reverse gap-px">
-              {[...game.completedRows].reverse().map((row, ri) => (
-                <div key={ri} className="flex gap-px justify-center">
-                  {row.stitches.map((stitch, si) => (
-                    <div key={si} className="stitch-pop rounded-sm flex items-center justify-center" style={{ width: stitchCellSize - 2, height: stitchCellSize - 2, backgroundColor: stitch.correct ? `${row.yarnColor}25` : "#fee2e225" }}>
-                      <StitchSVG type={stitch.type} size={stitchCellSize - 8} color={stitch.correct ? row.yarnColor : "#e05050"} colorA={row.yarnColor} colorB={yarnColorB} />
-                    </div>
-                  ))}
-                </div>
-              ))}
+          {/* Floating scores */}
+          {game.floatingScores.map((fs) => (
+            <div key={fs.id} className="score-fly absolute text-amber-500 font-bold text-sm pointer-events-none z-20" style={{ left: `${fs.x}%`, top: `${fs.y}%` }}>
+              +{fs.value}
             </div>
+          ))}
 
-            {/* Current row */}
-            {(game.currentRowStitches.length > 0 || game.completedRows.length > 0) && (
-              <div className={`flex gap-px justify-center mt-px ${shakeRow ? "row-complete" : ""}`}>
+          {game.completedRows.length === 0 && game.currentRowStitches.length === 0 && (
+            <div className="flex items-center justify-center h-full text-amber-300 text-xs italic px-4 text-center" style={{ marginTop: 80 }}>
+              Tap a stitch to begin!
+            </div>
+          )}
+
+          {/* Physics fabric — rendered by KnitLab engine */}
+          {(game.completedRows.length > 0 || game.currentRowStitches.length > 0) && (
+            <div ref={fabricRef} className="overflow-y-auto" style={{ marginTop: 80, height: `calc(100% - 120px)` }}>
+              <KnitLabEngine
+                pattern={buildFabricPattern(game.completedRows, game.currentRowStitches)}
+                yarnColor={yarnColor}
+                width={fabricWidth}
+                height={Math.max(120, (game.completedRows.length + 1) * 28 + 40)}
+                stitchWidth={stitchCellSize}
+                stitchHeight={Math.round(stitchCellSize * 0.8)}
+                gravity={0.02}
+                interactive={true}
+                offsetX={4}
+                offsetY={8}
+              />
+
+              {/* Current working row — SVG overlay for game feedback */}
+              <div className={`flex gap-px justify-center mt-1 ${shakeRow ? "row-complete" : ""}`}>
                 {game.currentRowStitches.map((stitch, si) => (
                   <div key={si} className="stitch-pop rounded-sm flex items-center justify-center" style={{ width: stitchCellSize - 2, height: stitchCellSize - 2, backgroundColor: stitch.correct ? `${yarnColor}25` : "#fee2e225" }}>
                     <StitchSVG type={stitch.type} size={stitchCellSize - 8} color={stitch.correct ? yarnColor : "#e05050"} colorA={yarnColor} colorB={yarnColorB} />
@@ -397,8 +434,8 @@ export default function KnitGame() {
                   </>
                 )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Right Buttons */}
