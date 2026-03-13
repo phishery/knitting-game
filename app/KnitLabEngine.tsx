@@ -187,32 +187,41 @@ class KnitGraph {
     let cursor: Point | null = null;
 
     for (let r = 0; r < this.rows; r++) {
-      for (let c = 0; c < this.cols; c++) {
+      // Flat knitting: alternate direction each row (boustrophedon)
+      // Even rows (RS): left to right. Odd rows (WS): right to left.
+      const isWrongSide = r % 2 === 1;
+
+      for (let ci = 0; ci < this.cols; ci++) {
+        // On WS rows, traverse columns in reverse
+        const c = isWrongSide ? (this.cols - 1 - ci) : ci;
         const type = this.pattern[r][c];
         const x = ox + c * w;
         const y = oy + r * h;
 
+        // On WS rows, mirror the stitch horizontally within its cell
+        // by passing negative width (stitch builders handle direction)
+        const dirW = isWrongSide ? -w : w;
+
         if (type === "K") {
-          cursor = this.makeKnit(x, y, w, h, cursor);
+          cursor = this.makeKnit(x, y, dirW, h, cursor);
         } else if (type === "P") {
-          cursor = this.makePurl(x, y, w, h, cursor);
+          cursor = this.makePurl(x, y, dirW, h, cursor);
         } else if (type === "YO") {
-          cursor = this.makeYarnOver(x, y, w, h, cursor);
+          cursor = this.makeYarnOver(x, y, dirW, h, cursor);
         } else if (type === "K2T") {
-          cursor = this.makeK2tog(x, y, w, h, cursor);
+          cursor = this.makeK2tog(x, y, dirW, h, cursor);
         } else if (type === "SSK") {
-          cursor = this.makeSSK(x, y, w, h, cursor);
+          cursor = this.makeSSK(x, y, dirW, h, cursor);
         } else if (type === "M1R") {
-          cursor = this.makeM1R(x, y, w, h, cursor);
+          cursor = this.makeM1R(x, y, dirW, h, cursor);
         } else if (type === "M1L") {
-          cursor = this.makeM1L(x, y, w, h, cursor);
+          cursor = this.makeM1L(x, y, dirW, h, cursor);
         } else if (type === "CL") {
-          cursor = this.makeCableLeft(x, y, w, h, cursor);
+          cursor = this.makeCableLeft(x, y, dirW, h, cursor);
         } else if (type === "CR") {
-          cursor = this.makeCableRight(x, y, w, h, cursor);
+          cursor = this.makeCableRight(x, y, dirW, h, cursor);
         } else {
-          // Default to knit for unknown
-          cursor = this.makeKnit(x, y, w, h, cursor);
+          cursor = this.makeKnit(x, y, dirW, h, cursor);
         }
       }
     }
