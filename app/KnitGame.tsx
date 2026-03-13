@@ -9,10 +9,14 @@ import {
   PATTERNS,
   YARN_COLORS,
   STITCH_INFO,
+  START_LEVEL,
   getPatternForLevel,
   getRowTarget,
   getScoreForStitch,
   getLivesForLevel,
+  getTimeForLevel,
+  getTimerBonus,
+  getUnlockedCategories,
 } from "./game-engine";
 import StitchSVG from "./StitchSVG";
 
@@ -66,16 +70,9 @@ function initLevel(level: number, prevState?: Partial<GameState>): GameState {
     highScore: prevState?.highScore ?? loadHighScore(),
     totalLifetimeStitches: prevState?.totalLifetimeStitches ?? loadLifetimeStitches(),
     unlockedCategories: getUnlockedCategories(level),
+    timeRemaining: getTimeForLevel(level),
+    timerBonus: 0,
   };
-}
-
-function getUnlockedCategories(level: number): string[] {
-  const cats: string[] = ["basic"];
-  if (level >= 2) cats.push("texture");
-  if (level >= 6) cats.push("lace");
-  if (level >= 8) cats.push("cable");
-  if (level >= 9) cats.push("colorwork");
-  return cats;
 }
 
 function getCurrentTargetRow(pattern: PatternDef, rowIndex: number): StitchType[] {
@@ -86,21 +83,49 @@ let floatingIdCounter = 0;
 
 export default function KnitGame() {
   const [game, setGame] = useState<GameState>({
-    ...initLevel(1),
+    ...initLevel(START_LEVEL),
     screen: "menu",
   });
   const fabricRef = useRef<HTMLDivElement>(null);
   const [shakeRow, setShakeRow] = useState(false);
   const [needleAnim, setNeedleAnim] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Vibrate on mobile if available
+  // Timer countdown
+  useEffect(() => {
+    if (game.screen === "playing") {
+      timerRef.current = setInterval(() => {
+        setGame((prev) => {
+          if (prev.screen !== "playing") return prev;
+          const newTime = prev.timeRemaining - 1;
+          if (newTime <= 0) {
+            // Time's up!
+            if (prev.score > prev.highScore) {
+              saveHighScore(prev.score);
+            }
+            saveLifetimeStitches(prev.totalLifetimeStitches);
+            return {
+              ...prev,
+              screen: "gameOver",
+              timeRemaining: 0,
+              highScore: Math.max(prev.highScore, prev.score),
+            };
+          }
+          return { ...prev, timeRemaining: newTime };
+        });
+      }, 1000);
+      return () => {
+        if (timerRef.current) clearInterval(timerRef.current);
+      };
+    }
+  }, [game.screen, game.level]);
+
   const haptic = useCallback((ms: number = 15) => {
     if (typeof navigator !== "undefined" && navigator.vibrate) {
       navigator.vibrate(ms);
     }
   }, []);
 
-  // Handle stitch tap
   const handleStitch = useCallback((tappedType: StitchType) => {
     setGame((prev) => {
       if (prev.screen !== "playing") return prev;
@@ -126,6 +151,8 @@ export default function KnitGame() {
       let newFloating = [...prev.floatingScores];
       const newTotalStitches = prev.totalStitches + 1;
       const newLifetime = prev.totalLifetimeStitches + 1;
+      // Correct stitches give bonus time
+      let newTime = prev.timeRemaining + (isCorrect ? 0.5 : 0);
 
       if (isCorrect) {
         const pts = getScoreForStitch(newCombo, prev.level);
@@ -134,53 +161,47 @@ export default function KnitGame() {
         newFloating.push({
           id: ++floatingIdCounter,
           value: pts,
-          x: (prev.currentStitchIndex / prev.currentPattern.width) * 100,
-          y: 50,
+          x: (prev.currentStitchIndex / prev.currentPattern.width) * 80 + 10,
+          y: 40,
         });
-        // Clean old floating scores
         if (newFloating.length > 8) newFloating = newFloating.slice(-8);
       } else {
         haptic(50);
+        newTime -= 2; // Wrong answer costs time
         setShakeRow(true);
         setTimeout(() => setShakeRow(false), 400);
       }
 
-      // Check if row is complete
+      // Row complete
       if (newCurrentRow.length >= prev.currentPattern.width) {
         const isPerfectRow = newCurrentRow.every((s) => s.correct);
         const newPerfectRows = isPerfectRow ? prev.perfectRows + 1 : prev.perfectRows;
 
-        // Row complete bonus
         if (isPerfectRow) {
           const rowBonus = 50 * prev.level;
           newScore += rowBonus;
+          newTime += 3; // Bonus time for perfect row
           newFloating.push({
             id: ++floatingIdCounter,
             value: rowBonus,
             x: 50,
-            y: 30,
+            y: 25,
           });
         }
 
         const newCompletedRows = [
           ...prev.completedRows,
-          {
-            stitches: newCurrentRow,
-            yarnColor: getYarnColor(prev.yarnColorIndex),
-          },
+          { stitches: newCurrentRow, yarnColor: getYarnColor(prev.yarnColorIndex) },
         ];
-
         const newRowIndex = prev.currentRowIndex + 1;
 
-        // Check if level is complete
+        // Level complete?
         if (newCompletedRows.length >= prev.rowsToComplete) {
-          // Level complete!
+          const tBonus = getTimerBonus(Math.round(newTime), prev.level);
           const lvlBonus = prev.level * 100 + newPerfectRows * 50;
-          newScore += lvlBonus;
+          newScore += lvlBonus + tBonus;
 
-          if (newScore > prev.highScore) {
-            saveHighScore(newScore);
-          }
+          if (newScore > prev.highScore) saveHighScore(newScore);
           saveLifetimeStitches(newLifetime);
 
           return {
@@ -199,6 +220,8 @@ export default function KnitGame() {
             floatingScores: newFloating,
             highScore: Math.max(prev.highScore, newScore),
             totalLifetimeStitches: newLifetime,
+            timeRemaining: Math.round(newTime),
+            timerBonus: tBonus,
           };
         }
 
@@ -216,14 +239,14 @@ export default function KnitGame() {
           perfectRows: newPerfectRows,
           floatingScores: newFloating,
           totalLifetimeStitches: newLifetime,
+          timeRemaining: Math.round(newTime),
+          timerBonus: 0,
         };
       }
 
-      // Game over check
+      // Game over?
       if (newLives <= 0) {
-        if (newScore > prev.highScore) {
-          saveHighScore(newScore);
-        }
+        if (newScore > prev.highScore) saveHighScore(newScore);
         saveLifetimeStitches(newLifetime);
         return {
           ...prev,
@@ -238,6 +261,8 @@ export default function KnitGame() {
           floatingScores: newFloating,
           highScore: Math.max(prev.highScore, newScore),
           totalLifetimeStitches: newLifetime,
+          timeRemaining: Math.round(newTime),
+          timerBonus: 0,
         };
       }
 
@@ -252,6 +277,8 @@ export default function KnitGame() {
         totalStitches: newTotalStitches,
         floatingScores: newFloating,
         totalLifetimeStitches: newLifetime,
+        timeRemaining: Math.round(newTime),
+        timerBonus: 0,
       };
     });
   }, [haptic]);
@@ -276,31 +303,21 @@ export default function KnitGame() {
     }
   }, [game.floatingScores]);
 
-  const startGame = () => {
-    setGame(initLevel(1));
-  };
-
-  const nextLevel = () => {
-    setGame((prev) => initLevel(prev.level + 1, prev));
-  };
-
-  const goToMenu = () => {
-    setGame((prev) => ({
-      ...initLevel(1),
-      screen: "menu",
-      highScore: prev.highScore,
-      totalLifetimeStitches: prev.totalLifetimeStitches,
-    }));
-  };
+  const startGame = () => setGame(initLevel(START_LEVEL));
+  const nextLevel = () => setGame((prev) => initLevel(prev.level + 1, prev));
+  const goToMenu = () => setGame((prev) => ({
+    ...initLevel(START_LEVEL),
+    screen: "menu",
+    highScore: prev.highScore,
+    totalLifetimeStitches: prev.totalLifetimeStitches,
+  }));
 
   // ============ RENDER ============
 
-  // Menu Screen
   if (game.screen === "menu") {
     return <MenuScreen highScore={game.highScore} lifetime={game.totalLifetimeStitches} onStart={startGame} />;
   }
 
-  // Game Over Screen
   if (game.screen === "gameOver") {
     return (
       <GameOverScreen
@@ -309,19 +326,18 @@ export default function KnitGame() {
         level={game.level}
         maxCombo={game.maxCombo}
         totalStitches={game.totalStitches}
+        timeUp={game.timeRemaining <= 0}
         onRestart={startGame}
         onMenu={goToMenu}
       />
     );
   }
 
-  // Level Complete Screen
   if (game.screen === "levelComplete") {
     const newCats = getUnlockedCategories(game.level + 1);
     const prevCats = getUnlockedCategories(game.level);
     const newUnlock = newCats.find((c) => !prevCats.includes(c));
     const newPatterns = PATTERNS.filter((p) => p.unlockLevel === game.level + 1);
-
     return (
       <LevelCompleteScreen
         level={game.level}
@@ -329,6 +345,7 @@ export default function KnitGame() {
         perfectRows={game.perfectRows}
         rowsToComplete={game.rowsToComplete}
         maxCombo={game.maxCombo}
+        timerBonus={game.timerBonus}
         newCategory={newUnlock}
         newPatterns={newPatterns}
         onNext={nextLevel}
@@ -336,50 +353,68 @@ export default function KnitGame() {
     );
   }
 
-  // Playing Screen
+  // === PLAYING ===
   const targetRow = getCurrentTargetRow(game.currentPattern, game.currentRowIndex);
   const uniqueStitches = game.currentPattern.stitchTypes;
   const yarnColor = getYarnColor(game.yarnColorIndex);
+  const timerPct = game.timeRemaining / getTimeForLevel(game.level);
+  const timerUrgent = game.timeRemaining <= 10;
+  const stitchCellSize = Math.min(38, Math.floor((window.innerWidth - 100) / game.currentPattern.width));
+
+  // Split stitch buttons into left and right columns for the needle layout
+  const leftStitches = uniqueStitches.slice(0, Math.ceil(uniqueStitches.length / 2));
+  const rightStitches = uniqueStitches.slice(Math.ceil(uniqueStitches.length / 2));
 
   return (
     <div className="h-dvh w-full flex flex-col overflow-hidden" style={{ maxWidth: 480, margin: "0 auto" }}>
       {/* Top Bar */}
-      <div className="flex items-center justify-between px-3 py-2 bg-gradient-to-r from-amber-50 to-rose-50 border-b border-amber-200">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-gradient-to-r from-amber-50 to-rose-50 border-b border-amber-200">
+        <div className="flex items-center gap-1.5">
           <span className="text-sm font-bold text-amber-800">Lvl {game.level}</span>
-          <span className="text-xs px-2 py-0.5 bg-amber-100 rounded-full text-amber-700 font-medium">
+          <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 rounded-full text-amber-700 font-medium truncate max-w-[100px]">
             {game.currentPattern.emoji} {game.currentPattern.name}
           </span>
         </div>
-        <div className="text-right">
-          <div className="text-lg font-bold text-amber-900">{game.score.toLocaleString()}</div>
+        <div className="text-lg font-bold text-amber-900">{game.score.toLocaleString()}</div>
+      </div>
+
+      {/* Timer Bar */}
+      <div className="h-2 bg-gray-100 relative">
+        <div
+          className={`h-full transition-all duration-1000 ease-linear rounded-r ${
+            timerUrgent ? "bg-red-500 animate-pulse" : timerPct > 0.5 ? "bg-emerald-400" : "bg-amber-400"
+          }`}
+          style={{ width: `${timerPct * 100}%` }}
+        />
+        <div className={`absolute right-2 -top-0.5 text-[10px] font-bold ${timerUrgent ? "text-red-600" : "text-gray-500"}`}>
+          {Math.floor(game.timeRemaining / 60)}:{(game.timeRemaining % 60).toString().padStart(2, "0")}
         </div>
       </div>
 
       {/* Lives & Combo */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-white/50">
-        <div className="flex gap-1">
+      <div className="flex items-center justify-between px-3 py-1 bg-white/50">
+        <div className="flex gap-0.5">
           {Array.from({ length: getLivesForLevel(game.level) }).map((_, i) => (
-            <span key={i} className={`text-lg ${i < game.lives ? "" : "opacity-20"}`}>
+            <span key={i} className={`text-sm ${i < game.lives ? "" : "opacity-20"}`}>
               {i < game.lives ? "❤️" : "🖤"}
             </span>
           ))}
         </div>
         <div className="flex items-center gap-2">
           {game.combo > 2 && (
-            <span className={`text-sm font-bold text-orange-500 ${game.combo > 5 ? "combo-pulse" : ""}`}>
+            <span className={`text-xs font-bold text-orange-500 ${game.combo > 5 ? "combo-pulse" : ""}`}>
               🔥 {game.combo}x
             </span>
           )}
-          <span className="text-xs text-gray-500">
+          <span className="text-[10px] text-gray-500">
             Row {Math.min(game.completedRows.length + 1, game.rowsToComplete)}/{game.rowsToComplete}
           </span>
         </div>
       </div>
 
-      {/* Pattern Preview — shows next row */}
-      <div className="px-3 py-2 bg-gradient-to-b from-amber-50/80 to-transparent">
-        <div className="text-[10px] uppercase tracking-wider text-amber-600 mb-1 font-semibold">Pattern</div>
+      {/* Pattern Preview */}
+      <div className="px-3 py-1.5 bg-gradient-to-b from-amber-50/80 to-transparent">
+        <div className="text-[9px] uppercase tracking-wider text-amber-600 mb-0.5 font-semibold">Pattern</div>
         <div className="flex gap-0.5 justify-center">
           {targetRow.map((st, i) => {
             const done = i < game.currentStitchIndex;
@@ -390,13 +425,11 @@ export default function KnitGame() {
                 className={`rounded transition-all duration-150 ${
                   current
                     ? "ring-2 ring-amber-400 ring-offset-1 scale-110 bg-amber-50"
-                    : done
-                    ? "opacity-40"
-                    : "bg-white/60"
+                    : done ? "opacity-30" : "bg-white/60"
                 }`}
                 style={{
-                  width: `${Math.min(40, (100 / targetRow.length) * 3.2)}px`,
-                  height: `${Math.min(40, (100 / targetRow.length) * 3.2)}px`,
+                  width: stitchCellSize,
+                  height: stitchCellSize,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -404,8 +437,8 @@ export default function KnitGame() {
               >
                 <StitchSVG
                   type={st}
-                  size={Math.min(32, (100 / targetRow.length) * 2.8)}
-                  color={done ? "#aaa" : STITCH_INFO[st].bgColor}
+                  size={stitchCellSize - 6}
+                  color={done ? "#bbb" : STITCH_INFO[st].bgColor}
                 />
               </div>
             );
@@ -413,119 +446,139 @@ export default function KnitGame() {
         </div>
       </div>
 
-      {/* Fabric Area — completed rows */}
-      <div
-        ref={fabricRef}
-        className="flex-1 overflow-y-auto px-2 py-1 relative"
-        style={{ minHeight: 0 }}
-      >
-        {/* Floating scores */}
-        {game.floatingScores.map((fs) => (
-          <div
-            key={fs.id}
-            className="score-fly absolute text-amber-500 font-bold text-lg pointer-events-none z-10"
-            style={{ left: `${fs.x}%`, top: `${fs.y}%` }}
-          >
-            +{fs.value}
-          </div>
-        ))}
-
-        {game.completedRows.length === 0 && (
-          <div className="flex items-center justify-center h-full text-amber-300 text-sm italic">
-            Start knitting! Tap the stitches below...
-          </div>
-        )}
-
-        <div className="flex flex-col-reverse gap-0.5">
-          {[...game.completedRows].reverse().map((row, ri) => (
-            <div key={ri} className="flex gap-0.5 justify-center">
-              {row.stitches.map((stitch, si) => (
-                <div
-                  key={si}
-                  className={`stitch-pop rounded-sm flex items-center justify-center`}
-                  style={{
-                    width: `${Math.min(40, (100 / game.currentPattern.width) * 3.2)}px`,
-                    height: `${Math.min(40, (100 / game.currentPattern.width) * 3.2)}px`,
-                    backgroundColor: stitch.correct
-                      ? `${row.yarnColor}30`
-                      : "#fee2e230",
-                  }}
-                >
-                  <StitchSVG
-                    type={stitch.type}
-                    size={Math.min(30, (100 / game.currentPattern.width) * 2.6)}
-                    color={stitch.correct ? row.yarnColor : "#e05050"}
-                    colorA={row.yarnColor}
-                    colorB={game.completedRows.length > 1 ? YARN_COLORS[(game.yarnColorIndex + 1) % YARN_COLORS.length].hex : "#5e8ed4"}
-                  />
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-
-        {/* Current row being worked */}
-        {game.currentRowStitches.length > 0 && (
-          <div className={`flex gap-0.5 justify-center mt-0.5 ${shakeRow ? "row-complete" : ""}`}>
-            {game.currentRowStitches.map((stitch, si) => (
-              <div
-                key={si}
-                className="stitch-pop rounded-sm flex items-center justify-center"
-                style={{
-                  width: `${Math.min(40, (100 / game.currentPattern.width) * 3.2)}px`,
-                  height: `${Math.min(40, (100 / game.currentPattern.width) * 3.2)}px`,
-                  backgroundColor: stitch.correct ? `${yarnColor}30` : "#fee2e230",
-                }}
-              >
-                <StitchSVG
-                  type={stitch.type}
-                  size={Math.min(30, (100 / game.currentPattern.width) * 2.6)}
-                  color={stitch.correct ? yarnColor : "#e05050"}
-                />
-              </div>
-            ))}
-            {/* Remaining empty slots */}
-            {Array.from({ length: game.currentPattern.width - game.currentRowStitches.length }).map((_, i) => (
-              <div
-                key={`empty-${i}`}
-                className="rounded-sm border border-dashed border-amber-200"
-                style={{
-                  width: `${Math.min(40, (100 / game.currentPattern.width) * 3.2)}px`,
-                  height: `${Math.min(40, (100 / game.currentPattern.width) * 3.2)}px`,
-                }}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Knitting Needles visual */}
-      <div className={`flex justify-center py-1 ${needleAnim ? "needle-click" : ""}`}>
-        <div className="text-2xl">🪡</div>
-      </div>
-
-      {/* Stitch Buttons */}
-      <div className="px-3 pb-4 pt-2 bg-gradient-to-t from-amber-50 to-transparent">
-        <div className="flex gap-2 justify-center flex-wrap">
-          {uniqueStitches.map((st) => {
+      {/* Main Area: Needles + Fabric */}
+      <div className="flex-1 flex overflow-hidden" style={{ minHeight: 0 }}>
+        {/* Left Needle Column */}
+        <div className="flex flex-col items-center justify-center gap-2 px-1 py-2" style={{ width: 56 }}>
+          <div className={`text-lg ${needleAnim ? "needle-click" : ""}`}>🪡</div>
+          {leftStitches.map((st) => {
             const info = STITCH_INFO[st];
             return (
               <button
                 key={st}
                 onClick={() => handleStitch(st)}
-                className="active:scale-90 transition-transform duration-100 rounded-xl shadow-md flex flex-col items-center gap-1 px-3 py-2 min-w-[64px] border-2 border-white/50"
+                className="active:scale-90 transition-transform duration-100 rounded-lg shadow-md flex flex-col items-center gap-0.5 p-1.5 w-[50px] border border-white/40"
                 style={{ backgroundColor: info.bgColor }}
               >
-                <div className="bg-white/20 rounded-lg p-1">
-                  <StitchSVG type={st} size={28} color="#ffffff" />
-                </div>
-                <span className="text-[11px] font-bold text-white drop-shadow-sm">
+                <StitchSVG type={st} size={22} color="#ffffff" />
+                <span className="text-[9px] font-bold text-white drop-shadow-sm leading-none">
                   {info.label}
                 </span>
               </button>
             );
           })}
         </div>
+
+        {/* Fabric Area */}
+        <div
+          ref={fabricRef}
+          className="flex-1 overflow-y-auto py-1 relative"
+          style={{ minHeight: 0 }}
+        >
+          {/* Floating scores */}
+          {game.floatingScores.map((fs) => (
+            <div
+              key={fs.id}
+              className="score-fly absolute text-amber-500 font-bold text-sm pointer-events-none z-10"
+              style={{ left: `${fs.x}%`, top: `${fs.y}%` }}
+            >
+              +{fs.value}
+            </div>
+          ))}
+
+          {game.completedRows.length === 0 && game.currentRowStitches.length === 0 && (
+            <div className="flex items-center justify-center h-full text-amber-300 text-xs italic px-4 text-center">
+              Tap a stitch on the needles to start knitting!
+            </div>
+          )}
+
+          <div className="flex flex-col-reverse gap-px">
+            {[...game.completedRows].reverse().map((row, ri) => (
+              <div key={ri} className="flex gap-px justify-center">
+                {row.stitches.map((stitch, si) => (
+                  <div
+                    key={si}
+                    className="stitch-pop rounded-sm flex items-center justify-center"
+                    style={{
+                      width: stitchCellSize - 2,
+                      height: stitchCellSize - 2,
+                      backgroundColor: stitch.correct ? `${row.yarnColor}25` : "#fee2e225",
+                    }}
+                  >
+                    <StitchSVG
+                      type={stitch.type}
+                      size={stitchCellSize - 8}
+                      color={stitch.correct ? row.yarnColor : "#e05050"}
+                      colorA={row.yarnColor}
+                      colorB={YARN_COLORS[(game.yarnColorIndex + 1) % YARN_COLORS.length].hex}
+                    />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+
+          {/* Current row */}
+          {(game.currentRowStitches.length > 0 || game.completedRows.length > 0) && (
+            <div className={`flex gap-px justify-center mt-px ${shakeRow ? "row-complete" : ""}`}>
+              {game.currentRowStitches.map((stitch, si) => (
+                <div
+                  key={si}
+                  className="stitch-pop rounded-sm flex items-center justify-center"
+                  style={{
+                    width: stitchCellSize - 2,
+                    height: stitchCellSize - 2,
+                    backgroundColor: stitch.correct ? `${yarnColor}25` : "#fee2e225",
+                  }}
+                >
+                  <StitchSVG
+                    type={stitch.type}
+                    size={stitchCellSize - 8}
+                    color={stitch.correct ? yarnColor : "#e05050"}
+                  />
+                </div>
+              ))}
+              {Array.from({ length: game.currentPattern.width - game.currentRowStitches.length }).map((_, i) => (
+                <div
+                  key={`e-${i}`}
+                  className="rounded-sm border border-dashed border-amber-200/50"
+                  style={{
+                    width: stitchCellSize - 2,
+                    height: stitchCellSize - 2,
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Right Needle Column */}
+        <div className="flex flex-col items-center justify-center gap-2 px-1 py-2" style={{ width: 56 }}>
+          <div className={`text-lg transform -scale-x-100 ${needleAnim ? "needle-click" : ""}`}>🪡</div>
+          {rightStitches.map((st) => {
+            const info = STITCH_INFO[st];
+            return (
+              <button
+                key={st}
+                onClick={() => handleStitch(st)}
+                className="active:scale-90 transition-transform duration-100 rounded-lg shadow-md flex flex-col items-center gap-0.5 p-1.5 w-[50px] border border-white/40"
+                style={{ backgroundColor: info.bgColor }}
+              >
+                <StitchSVG type={st} size={22} color="#ffffff" />
+                <span className="text-[9px] font-bold text-white drop-shadow-sm leading-none">
+                  {info.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Bottom hint bar */}
+      <div className="px-3 py-2 bg-gradient-to-t from-amber-50 to-transparent text-center">
+        <span className="text-[10px] text-amber-500">
+          {game.currentPattern.description}
+        </span>
       </div>
     </div>
   );
@@ -544,13 +597,10 @@ function MenuScreen({
 }) {
   return (
     <div className="h-dvh w-full flex flex-col items-center justify-center px-6 fade-in-up" style={{ maxWidth: 480, margin: "0 auto" }}>
-      {/* Yarn ball decoration */}
       <div className="text-6xl mb-2">🧶</div>
-      <h1 className="text-4xl font-black text-amber-900 tracking-tight mb-1">
-        Knitty Gritty
-      </h1>
-      <p className="text-amber-600 text-sm mb-8 text-center">
-        Match the pattern, grow your fabric, chase the high score!
+      <h1 className="text-4xl font-black text-amber-900 tracking-tight mb-1">Knitty Gritty</h1>
+      <p className="text-amber-600 text-sm mb-6 text-center">
+        Match the pattern, beat the clock, grow your fabric!
       </p>
 
       <button
@@ -561,42 +611,34 @@ function MenuScreen({
       </button>
 
       {highScore > 0 && (
-        <div className="text-amber-700 font-medium">
-          Best: {highScore.toLocaleString()} pts
-        </div>
+        <div className="text-amber-700 font-medium">Best: {highScore.toLocaleString()} pts</div>
       )}
       {lifetime > 0 && (
-        <div className="text-amber-500 text-sm mt-1">
-          {lifetime.toLocaleString()} lifetime stitches
-        </div>
+        <div className="text-amber-500 text-sm mt-1">{lifetime.toLocaleString()} lifetime stitches</div>
       )}
 
-      <div className="mt-8 bg-white/60 rounded-xl p-4 text-center max-w-[300px]">
+      <div className="mt-6 bg-white/60 rounded-xl p-4 text-center max-w-[300px]">
         <div className="text-sm font-semibold text-amber-800 mb-2">How to Play</div>
         <div className="text-xs text-amber-700 space-y-1">
-          <p>👆 Tap the correct stitch to match the pattern</p>
+          <p>🪡 Tap the matching stitch on the needles</p>
+          <p>⏱️ Beat the clock — correct stitches add time!</p>
           <p>🔥 Build combos for bonus points</p>
-          <p>❤️ Don&apos;t run out of lives!</p>
-          <p>📈 Level up to unlock new patterns & stitches</p>
+          <p>📈 Unlock new stitches: YO, K2tog, M1R, cables...</p>
         </div>
       </div>
 
-      <div className="mt-6 text-xs text-amber-400">
-        Stitch types unlock as you level up!
-      </div>
-
-      {/* Pattern preview */}
-      <div className="mt-4 flex gap-3 flex-wrap justify-center">
-        {["basic", "texture", "lace", "cable", "colorwork"].map((cat) => (
+      <div className="mt-5 flex gap-3 flex-wrap justify-center">
+        {[
+          { cat: "texture", icon: "🌿", lvl: 2 },
+          { cat: "increases", icon: "📐", lvl: 5 },
+          { cat: "lace", icon: "🕊️", lvl: 7 },
+          { cat: "cables", icon: "🪢", lvl: 9 },
+          { cat: "colorwork", icon: "🌈", lvl: 10 },
+        ].map(({ cat, icon, lvl }) => (
           <div key={cat} className="text-center">
-            <div className="text-[10px] uppercase tracking-wider text-amber-500">{cat}</div>
-            <div className="text-lg">
-              {cat === "basic" && "🧣"}
-              {cat === "texture" && "🌿"}
-              {cat === "lace" && "🕊️"}
-              {cat === "cable" && "🪢"}
-              {cat === "colorwork" && "🌈"}
-            </div>
+            <div className="text-lg">{icon}</div>
+            <div className="text-[9px] uppercase tracking-wider text-amber-500">{cat}</div>
+            <div className="text-[8px] text-amber-400">Lvl {lvl}</div>
           </div>
         ))}
       </div>
@@ -610,6 +652,7 @@ function GameOverScreen({
   level,
   maxCombo,
   totalStitches,
+  timeUp,
   onRestart,
   onMenu,
 }: {
@@ -618,6 +661,7 @@ function GameOverScreen({
   level: number;
   maxCombo: number;
   totalStitches: number;
+  timeUp: boolean;
   onRestart: () => void;
   onMenu: () => void;
 }) {
@@ -625,8 +669,12 @@ function GameOverScreen({
   return (
     <div className="h-dvh w-full flex flex-col items-center justify-center px-6 fade-in-up" style={{ maxWidth: 480, margin: "0 auto" }}>
       <div className="text-5xl mb-3">🧶</div>
-      <h2 className="text-3xl font-black text-amber-900 mb-1">Dropped a Stitch!</h2>
-      <p className="text-amber-600 text-sm mb-6">Your yarn ran out...</p>
+      <h2 className="text-3xl font-black text-amber-900 mb-1">
+        {timeUp ? "Time\u2019s Up!" : "Dropped a Stitch!"}
+      </h2>
+      <p className="text-amber-600 text-sm mb-6">
+        {timeUp ? "The clock ran out..." : "Too many mistakes!"}
+      </p>
 
       <div className="bg-white/70 rounded-2xl p-6 w-full max-w-[300px] space-y-3 mb-6">
         <div className="text-center">
@@ -660,10 +708,7 @@ function GameOverScreen({
       >
         🔄 Try Again
       </button>
-      <button
-        onClick={onMenu}
-        className="text-amber-600 font-medium text-sm py-2 active:opacity-60"
-      >
+      <button onClick={onMenu} className="text-amber-600 font-medium text-sm py-2 active:opacity-60">
         Back to Menu
       </button>
     </div>
@@ -676,6 +721,7 @@ function LevelCompleteScreen({
   perfectRows,
   rowsToComplete,
   maxCombo,
+  timerBonus,
   newCategory,
   newPatterns,
   onNext,
@@ -685,6 +731,7 @@ function LevelCompleteScreen({
   perfectRows: number;
   rowsToComplete: number;
   maxCombo: number;
+  timerBonus: number;
   newCategory?: string;
   newPatterns: PatternDef[];
   onNext: () => void;
@@ -706,9 +753,14 @@ function LevelCompleteScreen({
           <span className="text-amber-600">Best combo</span>
           <span className="font-bold text-amber-800">{maxCombo}x 🔥</span>
         </div>
+        {timerBonus > 0 && (
+          <div className="flex justify-between text-sm">
+            <span className="text-amber-600">Time bonus</span>
+            <span className="font-bold text-emerald-600">+{timerBonus.toLocaleString()} ⏱️</span>
+          </div>
+        )}
       </div>
 
-      {/* Unlock notifications */}
       {newCategory && (
         <div className="bg-gradient-to-r from-purple-100 to-pink-100 rounded-xl p-3 mb-3 text-center w-full max-w-[300px] shimmer-bg">
           <div className="text-xs uppercase tracking-wider text-purple-600 font-bold">New Category Unlocked!</div>
@@ -723,7 +775,6 @@ function LevelCompleteScreen({
             <div key={p.name} className="flex items-center gap-2 text-sm text-amber-800">
               <span>{p.emoji}</span>
               <span className="font-medium">{p.name}</span>
-              <span className="text-xs text-amber-500">— {p.description}</span>
             </div>
           ))}
         </div>
