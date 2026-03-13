@@ -119,13 +119,13 @@ export default function KnitGame() {
       };
 
       const newCurrentRow = [...prev.currentRowStitches, newStitch];
-      let newCombo = isCorrect ? prev.combo + 1 : 0;
-      let newMaxCombo = Math.max(prev.maxCombo, newCombo);
-      let newLives = isCorrect ? prev.lives : prev.lives - 1;
+      const newCombo = isCorrect ? prev.combo + 1 : 0;
+      const newMaxCombo = Math.max(prev.maxCombo, newCombo);
+      const newLives = isCorrect ? prev.lives : prev.lives - 1;
       let newScore = prev.score;
       let newFloating = [...prev.floatingScores];
-      let newTotalStitches = prev.totalStitches + 1;
-      let newLifetime = prev.totalLifetimeStitches + 1;
+      const newTotalStitches = prev.totalStitches + 1;
+      const newLifetime = prev.totalLifetimeStitches + 1;
 
       if (isCorrect) {
         const pts = getScoreForStitch(newCombo, prev.level);
