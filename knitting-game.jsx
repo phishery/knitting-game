@@ -1,6 +1,4 @@
-"use client";
-
-import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // KNITCRAFT — Mobile-First Interlocking Loop Knitting Engine
@@ -30,8 +28,8 @@ const PALETTE = [
   { name: "Plum",     hex: "#7A4872", shadow: "#4E2648", hi: "#A06898" },
 ];
 
-// --- 3D Yarn Tube ---
-function YarnTube({ d, ci, opacity = 1, wm = 1 }: { d: string; ci: number; opacity?: number; wm?: number }) {
+// ─── 3D Yarn Tube ───────────────────────────────────────────────────────────
+function YarnTube({ d, ci, opacity = 1, wm = 1 }) {
   const c = PALETTE[ci] || PALETTE[0];
   const w = YARN_W * wm;
   return (
@@ -46,13 +44,13 @@ function YarnTube({ d, ci, opacity = 1, wm = 1 }: { d: string; ci: number; opaci
   );
 }
 
-// --- Knit Loop Geometry (interlocking U-loops) ---
+// ─── Knit Loop Geometry (interlocking U-loops) ──────────────────────────────
 const LEG_HW = STITCH_W * 0.36;
 const LEG_TOP = STITCH_H * 0.42;
 const LEG_BOT = STITCH_H * 0.12;
 const U_DEPTH = STITCH_H * 0.42;
 
-function knitLeftLeg(cx: number, cy: number) {
+function knitLeftLeg(cx, cy) {
   const topX = cx - LEG_HW + STITCH_W * 0.04;
   const topY = cy - LEG_TOP;
   const botX = cx - LEG_HW;
@@ -63,7 +61,7 @@ function knitLeftLeg(cx: number, cy: number) {
       ${botX} ${botY}`;
 }
 
-function knitRightLeg(cx: number, cy: number) {
+function knitRightLeg(cx, cy) {
   const topX = cx + LEG_HW - STITCH_W * 0.04;
   const topY = cy - LEG_TOP;
   const botX = cx + LEG_HW;
@@ -74,7 +72,7 @@ function knitRightLeg(cx: number, cy: number) {
       ${topX} ${topY}`;
 }
 
-function knitBottomU(cx: number, cy: number) {
+function knitBottomU(cx, cy) {
   const lx = cx - LEG_HW;
   const rx = cx + LEG_HW;
   const sy = cy + LEG_BOT;
@@ -88,7 +86,7 @@ function knitBottomU(cx: number, cy: number) {
       ${rx} ${sy}`;
 }
 
-function knitTopArc(cx: number, cy: number) {
+function knitTopArc(cx, cy) {
   const lx = cx - LEG_HW + STITCH_W * 0.04;
   const rx = cx + LEG_HW - STITCH_W * 0.04;
   const topY = cy - LEG_TOP;
@@ -102,8 +100,8 @@ function knitTopArc(cx: number, cy: number) {
       ${rx} ${topY}`;
 }
 
-// --- Purl Geometry ---
-function purlBumpFront(cx: number, cy: number) {
+// ─── Purl Geometry ──────────────────────────────────────────────────────────
+function purlBumpFront(cx, cy) {
   const hw = STITCH_W * 0.44;
   const by = cy + STITCH_H * 0.02;
   return `M ${cx - hw} ${by}
@@ -112,7 +110,7 @@ function purlBumpFront(cx: number, cy: number) {
       ${cx + hw} ${by}`;
 }
 
-function purlBumpBack(cx: number, cy: number) {
+function purlBumpBack(cx, cy) {
   const hw = STITCH_W * 0.44;
   const by = cy + STITCH_H * 0.02;
   return `M ${cx - hw} ${by}
@@ -121,19 +119,19 @@ function purlBumpBack(cx: number, cy: number) {
       ${cx + hw} ${by}`;
 }
 
-function purlLeftLeg(cx: number, cy: number) {
+function purlLeftLeg(cx, cy) {
   return `M ${cx - STITCH_W * 0.24} ${cy - STITCH_H * 0.40}
     Q ${cx - STITCH_W * 0.024} ${cy},
       ${cx} ${cy + STITCH_H * 0.168}`;
 }
 
-function purlRightLeg(cx: number, cy: number) {
+function purlRightLeg(cx, cy) {
   return `M ${cx} ${cy + STITCH_H * 0.168}
     Q ${cx + STITCH_W * 0.024} ${cy},
       ${cx + STITCH_W * 0.24} ${cy - STITCH_H * 0.40}`;
 }
 
-function purlTopArc(cx: number, cy: number) {
+function purlTopArc(cx, cy) {
   const hw = STITCH_W * 0.24;
   const topY = cy - STITCH_H * 0.40;
   const peakY = topY - STITCH_H * 0.16;
@@ -141,7 +139,7 @@ function purlTopArc(cx: number, cy: number) {
     C ${cx - hw * 0.3} ${peakY}, ${cx + hw * 0.3} ${peakY}, ${cx + hw} ${topY}`;
 }
 
-function purlBottomU(cx: number, cy: number) {
+function purlBottomU(cx, cy) {
   const hw = STITCH_W * 0.22;
   const bs = cy + STITCH_H * 0.168;
   const dy = bs + STITCH_H * 0.28;
@@ -149,8 +147,8 @@ function purlBottomU(cx: number, cy: number) {
     C ${cx - hw * 0.4} ${dy}, ${cx + hw * 0.4} ${dy}, ${cx + hw} ${bs}`;
 }
 
-// --- Needles ---
-function Needle({ y, variant }: { y: number; variant: "front" | "back" }) {
+// ─── Needles ─────────────────────────────────────────────────────────────────
+function Needle({ y, variant }) {
   const x1 = 1, x2 = CANVAS_W - 1;
   const ny = y + (variant === "back" ? 6 : -4);
   const op = variant === "back" ? 0.25 : 1;
@@ -169,19 +167,14 @@ function Needle({ y, variant }: { y: number; variant: "front" | "back" }) {
   );
 }
 
-// --- Row Renderer ---
-interface StitchData {
-  color: number;
-  type: number;
-}
-
-function FabricRow({ stitches, y, animIdx = -1 }: { stitches: (StitchData | null)[]; y: number; animIdx?: number }) {
+// ─── Row Renderer ────────────────────────────────────────────────────────────
+function FabricRow({ stitches, y, animIdx = -1 }) {
   const baseX = NEEDLE_OVERHANG;
-  const topArcs: React.ReactNode[] = [];
-  const legs: React.ReactNode[] = [];
-  const bottomUs: React.ReactNode[] = [];
-  const purlBehind: React.ReactNode[] = [];
-  const purlFront: React.ReactNode[] = [];
+  const topArcs = [];
+  const legs = [];
+  const bottomUs = [];
+  const purlBehind = [];
+  const purlFront = [];
 
   for (let i = 0; i < stitches.length; i++) {
     const s = stitches[i];
@@ -227,8 +220,8 @@ function FabricRow({ stitches, y, animIdx = -1 }: { stitches: (StitchData | null
   );
 }
 
-// --- Pattern Preview (compact) ---
-function PatternPreview({ pattern, currentRow }: { pattern: StitchData[][]; currentRow: number }) {
+// ─── Pattern Preview (compact) ───────────────────────────────────────────────
+function PatternPreview({ pattern, currentRow }) {
   if (!pattern?.length) return null;
   const cell = 5;
   const vis = Math.min(10, pattern.length);
@@ -257,39 +250,39 @@ function PatternPreview({ pattern, currentRow }: { pattern: StitchData[][]; curr
   );
 }
 
-// --- Pattern Definitions ---
+// ─── Pattern Definitions ─────────────────────────────────────────────────────
 const PATTERNS = [
-  { name: "Free Knit", desc: "Any color & stitch", generate: () => [] as StitchData[][] },
+  { name: "Free Knit", desc: "Any color & stitch", generate: () => [] },
   {
     name: "Stockinette", desc: "All knit loops",
-    generate: (R: number, C: number) => Array.from({ length: R }, () =>
+    generate: (R, C) => Array.from({ length: R }, () =>
       Array.from({ length: C }, () => ({ color: 0, type: KNIT })))
   },
   {
     name: "Garter", desc: "Knit/purl rows",
-    generate: (R: number, C: number) => Array.from({ length: R }, (_, r) =>
+    generate: (R, C) => Array.from({ length: R }, (_, r) =>
       Array.from({ length: C }, () => ({ color: 0, type: r % 2 === 0 ? KNIT : PURL })))
   },
   {
     name: "Seed Stitch", desc: "K/P checkerboard",
-    generate: (R: number, C: number) => Array.from({ length: R }, (_, r) =>
+    generate: (R, C) => Array.from({ length: R }, (_, r) =>
       Array.from({ length: C }, (_, c) => ({ color: 0, type: (r + c) % 2 === 0 ? KNIT : PURL })))
   },
   {
-    name: "2x2 Rib", desc: "Ribbed columns",
-    generate: (R: number, C: number) => Array.from({ length: R }, () =>
+    name: "2×2 Rib", desc: "Ribbed columns",
+    generate: (R, C) => Array.from({ length: R }, () =>
       Array.from({ length: C }, (_, c) => ({ color: 0, type: Math.floor(c / 2) % 2 === 0 ? KNIT : PURL })))
   },
   {
     name: "Basket", desc: "Block texture",
-    generate: (R: number, C: number) => Array.from({ length: R }, (_, r) =>
+    generate: (R, C) => Array.from({ length: R }, (_, r) =>
       Array.from({ length: C }, (_, c) => ({
         color: 0, type: (Math.floor(r / 4) + Math.floor(c / 4)) % 2 === 0 ? KNIT : PURL
       })))
   },
   {
     name: "Stripes", desc: "Color stripes",
-    generate: (R: number, C: number) => {
+    generate: (R, C) => {
       const cs = [0, 2, 5, 4];
       return Array.from({ length: R }, (_, r) =>
         Array.from({ length: C }, () => ({ color: cs[Math.floor(r / 2) % cs.length], type: KNIT })));
@@ -297,7 +290,7 @@ const PATTERNS = [
   },
   {
     name: "Fair Isle", desc: "Diamond motif",
-    generate: (R: number, C: number) => {
+    generate: (R, C) => {
       const m = [
         [0,0,0,0,2,0,0,0,0,0],[0,0,0,2,5,2,0,0,0,0],[0,0,2,5,5,5,2,0,0,0],
         [0,2,5,5,3,5,5,2,0,0],[2,5,5,3,3,3,5,5,2,0],[0,2,5,5,3,5,5,2,0,0],
@@ -310,7 +303,7 @@ const PATTERNS = [
   },
   {
     name: "Hearts", desc: "Heart motif",
-    generate: (R: number, C: number) => {
+    generate: (R, C) => {
       const m = [
         [1,0,0,0,0,0,0,0,0,0],[1,0,6,0,0,0,6,0,0,0],[1,6,6,6,0,6,6,6,0,0],
         [1,6,6,6,6,6,6,6,0,0],[1,0,6,6,6,6,6,0,0,0],[1,0,0,6,6,6,0,0,0,0],
@@ -322,59 +315,48 @@ const PATTERNS = [
   },
 ];
 
-// --- Main Game ---
-interface HistoryState {
-  activeRow: (StitchData | null)[];
-  curIdx: number;
-  score: number;
-  streak: number;
-  totalRows: number;
-  dir: number;
-  completedRows: (StitchData | null)[][];
-}
-
-export default function KnitGame() {
-  const [completedRows, setCompletedRows] = useState<(StitchData | null)[][]>([]);
-  const [activeRow, setActiveRow] = useState<(StitchData | null)[]>(new Array(COLS).fill(null));
+// ─── Main Game ───────────────────────────────────────────────────────────────
+export default function KnittingGame() {
+  const [completedRows, setCompletedRows] = useState([]);
+  const [activeRow, setActiveRow] = useState(new Array(COLS).fill(null));
   const [curIdx, setCurIdx] = useState(0);
   const [selColor, setSelColor] = useState(0);
   const [animIdx, setAnimIdx] = useState(-1);
   const [score, setScore] = useState(0);
   const [streak, setStreak] = useState(0);
   const [patIdx, setPatIdx] = useState(0);
+  const [pattern, setPattern] = useState([]);
   const [totalRows, setTotalRows] = useState(0);
   const [dir, setDir] = useState(1);
   const [showMenu, setShowMenu] = useState(false);
-  const [history, setHistory] = useState<HistoryState[]>([]);
-  const svgContainerRef = useRef<HTMLDivElement>(null);
+  const [history, setHistory] = useState([]); // undo stack
+  const svgContainerRef = useRef(null);
 
-  const pattern = useMemo(() => {
-    const gen = PATTERNS[patIdx].generate;
-    return gen ? gen(300, COLS) : [];
-  }, [patIdx]);
-
+  // Calculate visible rows based on available space
   const visibleRows = MAX_ROWS;
   const CANVAS_H = STITCH_H * (visibleRows + 1) + TOP_PAD + 10;
 
-  const changePattern = useCallback((newIdx: number) => {
-    setPatIdx(newIdx);
+  useEffect(() => {
+    const gen = PATTERNS[patIdx].generate;
+    setPattern(gen ? gen(300, COLS) : []);
     setCompletedRows([]); setActiveRow(new Array(COLS).fill(null));
     setCurIdx(0); setScore(0); setStreak(0); setTotalRows(0); setDir(1);
     setHistory([]);
-  }, []);
+  }, [patIdx]);
 
   const actualIdx = dir === 1 ? curIdx : COLS - 1 - curIdx;
 
-  const expected = useCallback((row: number, col: number) => {
+  const expected = useCallback((row, col) => {
     if (!pattern.length) return null;
     return pattern[row % pattern.length]?.[col] ?? null;
   }, [pattern]);
 
-  const doStitch = useCallback((stitchType: number) => {
+  const doStitch = useCallback((stitchType) => {
     if (curIdx >= COLS) return;
     const si = dir === 1 ? curIdx : COLS - 1 - curIdx;
     setAnimIdx(si);
 
+    // Save undo state
     setHistory(h => [...h, {
       activeRow: [...activeRow],
       curIdx,
@@ -422,8 +404,9 @@ export default function KnitGame() {
     setAnimIdx(-1);
   }, [history]);
 
+  // Keyboard (desktop fallback)
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
+    const onKey = (e) => {
       if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); doStitch(KNIT); }
       if (e.code === 'KeyP') { e.preventDefault(); doStitch(PURL); }
       if (e.code === 'ArrowRight') { e.preventDefault(); setSelColor(c => (c + 1) % PALETTE.length); }
@@ -450,7 +433,7 @@ export default function KnitGame() {
       overflow: 'hidden', boxSizing: 'border-box',
     }}>
 
-      {/* Top Bar: Title + Stats + Pattern Selector */}
+      {/* ─── Top Bar: Title + Stats + Pattern Selector ─── */}
       <div style={{
         padding: '8px 12px 4px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -466,7 +449,7 @@ export default function KnitGame() {
         <div style={{ display: 'flex', gap: 14, fontSize: 11, color: '#7B6B5B', letterSpacing: 0.5 }}>
           <span><b style={{ color: '#4A3A2A' }}>{totalRows}</b> rows</span>
           <span><b style={{ color: '#4A3A2A' }}>{score}</b> pts</span>
-          {streak > 1 && <span style={{ color: '#B44D3A' }}>x{streak}</span>}
+          {streak > 1 && <span style={{ color: '#B44D3A' }}>×{streak}</span>}
         </div>
 
         <div style={{ position: 'relative' }}>
@@ -474,7 +457,7 @@ export default function KnitGame() {
             background: '#FBF7F1', border: '1px solid #D4C4B0', borderRadius: 5,
             padding: '4px 10px', fontSize: 10, color: '#4A3A2A', cursor: 'pointer',
             letterSpacing: 0.8, fontFamily: 'inherit',
-          }}>{PATTERNS[patIdx].name} &#9662;</button>
+          }}>{PATTERNS[patIdx].name} ▾</button>
           {showMenu && (
             <div style={{
               position: 'absolute', top: '100%', right: 0, zIndex: 100,
@@ -483,14 +466,14 @@ export default function KnitGame() {
             }}>
               {PATTERNS.map((p, i) => (
                 <div key={i}
-                  onClick={() => { changePattern(i); setShowMenu(false); }}
+                  onClick={() => { setPatIdx(i); setShowMenu(false); }}
                   style={{
                     padding: '6px 10px', fontSize: 11, borderRadius: 3, cursor: 'pointer',
                     color: i === patIdx ? '#B44D3A' : '#4A3A2A',
                     fontWeight: i === patIdx ? 600 : 400,
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#EDE2D4')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                  onMouseEnter={e => e.currentTarget.style.background = '#EDE2D4'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                   <div>{p.name}</div>
                   <div style={{ fontSize: 9, color: '#9B8B7B' }}>{p.desc}</div>
                 </div>
@@ -500,7 +483,7 @@ export default function KnitGame() {
         </div>
       </div>
 
-      {/* Progress Bar */}
+      {/* ─── Progress Bar ─── */}
       <div style={{
         margin: '0 12px 4px', height: 3, background: '#E0D4C4', borderRadius: 2, flexShrink: 0,
       }}>
@@ -512,15 +495,15 @@ export default function KnitGame() {
         }} />
       </div>
 
-      {/* Direction + Stitch Count */}
+      {/* ─── Direction + Stitch Count ─── */}
       <div style={{
         display: 'flex', justifyContent: 'center', gap: 8, fontSize: 10,
         color: '#8B7B6B', marginBottom: 2, flexShrink: 0,
       }}>
-        <span>{dir === 1 ? '\u2192' : '\u2190'} Stitch {curIdx + 1} of {COLS}</span>
+        <span>{dir === 1 ? '→' : '←'} Stitch {curIdx + 1} of {COLS}</span>
         {nextExp && (
           <>
-            <span style={{ color: '#D4C4B0' }}>&middot;</span>
+            <span style={{ color: '#D4C4B0' }}>·</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
               next:
               <span style={{
@@ -534,14 +517,14 @@ export default function KnitGame() {
         )}
       </div>
 
-      {/* Middle: Canvas + Yarn Colors */}
+      {/* ─── Middle: Canvas + Yarn Colors ─── */}
       <div style={{
         flex: 1, display: 'flex', gap: 6,
         minHeight: 0, padding: '0 4px',
         overflow: 'hidden',
       }}>
 
-        {/* Canvas */}
+        {/* Canvas — fills remaining space */}
         <div ref={svgContainerRef} style={{
           flex: 1, background: '#FBF7F1', borderRadius: 8,
           border: '1px solid #DDD0C0',
@@ -586,12 +569,12 @@ export default function KnitGame() {
 
             <text x={dir === 1 ? NEEDLE_OVERHANG - 10 : CANVAS_W - NEEDLE_OVERHANG + 8}
               y={rowY + STITCH_H / 2 + 4} fontSize={12} fill="#9B8B7B" textAnchor="middle">
-              {dir === 1 ? '\u203A' : '\u2039'}
+              {dir === 1 ? '›' : '‹'}
             </text>
           </svg>
         </div>
 
-        {/* Yarn Palette */}
+        {/* Yarn Palette — vertical strip on right */}
         <div style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center',
           gap: 4, padding: '4px 2px', flexShrink: 0, width: 44,
@@ -620,7 +603,7 @@ export default function KnitGame() {
             </button>
           ))}
 
-          {/* Undo button */}
+          {/* Undo button below colors */}
           <div style={{ marginTop: 'auto', paddingTop: 6, flexShrink: 0 }}>
             <button onClick={undo}
               disabled={!history.length}
@@ -636,7 +619,7 @@ export default function KnitGame() {
               }}
               title="Undo last stitch"
             >
-              &#8617;
+              ↩
             </button>
             <div style={{ fontSize: 7, color: '#A89B8B', textAlign: 'center', marginTop: 2 }}>
               UNDO
@@ -645,7 +628,7 @@ export default function KnitGame() {
         </div>
       </div>
 
-      {/* Pattern Preview (if active) */}
+      {/* ─── Pattern Preview (if active) ─── */}
       {pattern.length > 0 && (
         <div style={{
           display: 'flex', justifyContent: 'center', padding: '4px 12px 2px', flexShrink: 0,
@@ -654,11 +637,12 @@ export default function KnitGame() {
         </div>
       )}
 
-      {/* Bottom: 2x2 Action Buttons */}
+      {/* ─── Bottom: 2×2 Action Buttons ─── */}
       <div style={{
         padding: '6px 10px 14px',
         flexShrink: 0,
       }}>
+        {/* 2×2 grid: top = purl, bottom = knit */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
@@ -682,7 +666,7 @@ export default function KnitGame() {
               touchAction: 'manipulation',
             }}
           >
-            <span style={{ fontSize: 22 }}>&lsaquo;</span>
+            <span style={{ fontSize: 22 }}>‹</span>
             <span style={{ fontSize: 12, letterSpacing: 0.5, fontWeight: 500 }}>COLOR</span>
           </button>
 
@@ -700,7 +684,7 @@ export default function KnitGame() {
               touchAction: 'manipulation',
             }}
           >
-            <span style={{ fontSize: 10, opacity: 0.7 }}>&#9552;&#9552;&#9552;</span>
+            <span style={{ fontSize: 10, opacity: 0.7 }}>═══</span>
             <span>PURL</span>
           </button>
 
@@ -720,7 +704,7 @@ export default function KnitGame() {
             }}
           >
             <span style={{ fontSize: 12, letterSpacing: 0.5, fontWeight: 500 }}>COLOR</span>
-            <span style={{ fontSize: 22 }}>&rsaquo;</span>
+            <span style={{ fontSize: 22 }}>›</span>
           </button>
 
           <button
@@ -738,7 +722,7 @@ export default function KnitGame() {
               touchAction: 'manipulation',
             }}
           >
-            <span style={{ fontSize: 14 }}>&or;</span>
+            <span style={{ fontSize: 14 }}>∨</span>
             <span>KNIT</span>
           </button>
         </div>
