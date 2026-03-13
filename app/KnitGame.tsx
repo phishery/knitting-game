@@ -347,6 +347,34 @@ export default function KnitGame() {
   const [showMenu, setShowMenu] = useState(false);
   const [history, setHistory] = useState<HistoryState[]>([]);
   const svgContainerRef = useRef<HTMLDivElement>(null);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+
+  const saveGame = useCallback(() => {
+    const data = { completedRows, activeRow, curIdx, selColor, score, streak, patIdx, totalRows, dir };
+    localStorage.setItem('knitcraft-save', JSON.stringify(data));
+    setSaveMsg('Saved!');
+    setTimeout(() => setSaveMsg(null), 1500);
+  }, [completedRows, activeRow, curIdx, selColor, score, streak, patIdx, totalRows, dir]);
+
+  const loadGame = useCallback(() => {
+    const raw = localStorage.getItem('knitcraft-save');
+    if (!raw) { setSaveMsg('No save found'); setTimeout(() => setSaveMsg(null), 1500); return; }
+    try {
+      const data = JSON.parse(raw);
+      setPatIdx(data.patIdx ?? 0);
+      setCompletedRows(data.completedRows ?? []);
+      setActiveRow(data.activeRow ?? new Array(COLS).fill(null));
+      setCurIdx(data.curIdx ?? 0);
+      setSelColor(data.selColor ?? 0);
+      setScore(data.score ?? 0);
+      setStreak(data.streak ?? 0);
+      setTotalRows(data.totalRows ?? 0);
+      setDir(data.dir ?? 1);
+      setHistory([]);
+      setSaveMsg('Loaded!');
+      setTimeout(() => setSaveMsg(null), 1500);
+    } catch (_e) { setSaveMsg('Bad save data'); setTimeout(() => setSaveMsg(null), 1500); }
+  }, []);
 
   const pattern = useMemo(() => {
     const gen = PATTERNS[patIdx].generate;
@@ -669,8 +697,43 @@ export default function KnitGame() {
             </button>
           ))}
 
-          {/* Share + Undo buttons */}
-          <div style={{ marginTop: 'auto', paddingTop: 6, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+          {/* Save / Load / Share / Undo buttons */}
+          <div style={{ marginTop: 'auto', paddingTop: 6, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, position: 'relative' }}>
+            {saveMsg && (
+              <div style={{
+                position: 'absolute', bottom: '100%', right: 0, marginBottom: 4,
+                background: '#4A3A2A', color: '#FBF7F1', fontSize: 11, padding: '4px 10px',
+                borderRadius: 6, whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+              }}>{saveMsg}</div>
+            )}
+            <button onClick={saveGame}
+              style={{
+                width: 36, height: 36, borderRadius: 8,
+                background: '#FBF7F1', border: '1.5px solid #C4B4A0',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#7B6B5B', boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+              }}
+              title="Save game"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
+            </button>
+            <button onClick={loadGame}
+              style={{
+                width: 36, height: 36, borderRadius: 8,
+                background: '#FBF7F1', border: '1.5px solid #C4B4A0',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#7B6B5B', boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+              }}
+              title="Load saved game"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+              </svg>
+            </button>
             <button onClick={() => {
               const svgEl = svgContainerRef.current?.querySelector('svg');
               if (!svgEl) return;
@@ -695,7 +758,7 @@ export default function KnitGame() {
                   if (navigator.share && navigator.canShare?.({ files: [file] })) {
                     try {
                       await navigator.share({ files: [file], title: 'My KnitCraft creation', text: `${totalRows} rows, ${score} pts!` });
-                    } catch { /* user cancelled */ }
+                    } catch (_e) { /* user cancelled */ }
                   } else {
                     const a = document.createElement('a');
                     a.href = URL.createObjectURL(blob);
@@ -724,11 +787,6 @@ export default function KnitGame() {
                 <line x1="12" y1="2" x2="12" y2="15" />
               </svg>
             </button>
-            <div style={{ fontSize: 7, color: '#A89B8B', textAlign: 'center' }}>
-              SHARE
-            </div>
-          </div>
-          <div>
             <button onClick={undo}
               disabled={!history.length}
               style={{
@@ -745,9 +803,6 @@ export default function KnitGame() {
             >
               &#8617;
             </button>
-            <div style={{ fontSize: 7, color: '#A89B8B', textAlign: 'center', marginTop: 2 }}>
-              UNDO
-            </div>
           </div>
         </div>
       </div>
