@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   StitchType,
   Stitch,
@@ -19,6 +19,7 @@ import {
   getUnlockedCategories,
 } from "./game-engine";
 import StitchSVG from "./StitchSVG";
+import YarnPhysics from "./YarnPhysics";
 
 function getYarnColor(index: number): string {
   const c = YARN_COLORS[index % YARN_COLORS.length];
@@ -78,95 +79,7 @@ function getCurrentTargetRow(pattern: PatternDef, rowIndex: number): StitchType[
 
 let floatingIdCounter = 0;
 
-// ============================================================
-// Knitting Needle SVG — a diagonal needle that extends across
-// ============================================================
-function NeedleSVG({ side, color, animate }: { side: "left" | "right"; color: string; animate: boolean }) {
-  const w = 60;
-  const h = 120;
-  const isLeft = side === "left";
-  return (
-    <svg
-      width={w} height={h}
-      viewBox={`0 0 ${w} ${h}`}
-      className={`${animate ? "needle-click" : ""}`}
-      style={{ filter: "drop-shadow(1px 2px 2px rgba(0,0,0,0.2))" }}
-    >
-      {/* Needle shaft */}
-      <line
-        x1={isLeft ? 5 : w - 5}
-        y1={8}
-        x2={isLeft ? w - 2 : 2}
-        y2={h - 8}
-        stroke="#c0a080"
-        strokeWidth={5}
-        strokeLinecap="round"
-      />
-      {/* Needle tip */}
-      <circle
-        cx={isLeft ? w - 2 : 2}
-        cy={h - 8}
-        r={3}
-        fill="#d4b896"
-      />
-      {/* Needle head/stopper */}
-      <circle
-        cx={isLeft ? 5 : w - 5}
-        cy={8}
-        r={5}
-        fill="#b89870"
-        stroke="#a08060"
-        strokeWidth={1}
-      />
-      {/* Yarn strand wrapping around needle tip */}
-      <path
-        d={isLeft
-          ? `M${w - 8},${h - 20} Q${w + 5},${h - 10} ${w - 2},${h - 3} Q${w - 10},${h + 5} ${w - 15},${h - 10}`
-          : `M12,${h - 20} Q${-5},${h - 10} 2,${h - 3} Q10,${h + 5} 15,${h - 10}`
-        }
-        fill="none"
-        stroke={color}
-        strokeWidth={3}
-        strokeLinecap="round"
-        opacity={0.9}
-      />
-    </svg>
-  );
-}
-
-// ============================================================
-// Yarn strand connecting needle to active stitch position
-// ============================================================
-function YarnStrand({ color, fromX, toX, height }: { color: string; fromX: number; toX: number; height: number }) {
-  const midY = height * 0.4;
-  const sag = height * 0.15;
-  return (
-    <svg
-      className="absolute inset-0 pointer-events-none z-5"
-      width="100%"
-      height={height}
-      style={{ overflow: "visible" }}
-    >
-      <path
-        d={`M${fromX},0 Q${(fromX + toX) / 2},${midY + sag} ${toX},${height}`}
-        fill="none"
-        stroke={color}
-        strokeWidth={3}
-        strokeLinecap="round"
-        opacity={0.6}
-      />
-      {/* Subtle highlight on yarn */}
-      <path
-        d={`M${fromX + 1},1 Q${(fromX + toX) / 2 + 1},${midY + sag - 1} ${toX + 1},${height}`}
-        fill="none"
-        stroke="white"
-        strokeWidth={1}
-        strokeLinecap="round"
-        opacity={0.2}
-      />
-    </svg>
-  );
-}
+// Static NeedleSVG and YarnStrand removed — replaced by YarnPhysics canvas
 
 export default function KnitGame() {
   const [game, setGame] = useState<GameState>({
@@ -176,7 +89,6 @@ export default function KnitGame() {
   const fabricRef = useRef<HTMLDivElement>(null);
   const workAreaRef = useRef<HTMLDivElement>(null);
   const [shakeRow, setShakeRow] = useState(false);
-  const [needleAnim, setNeedleAnim] = useState(false);
 
   // Timer countdown
   useEffect(() => {
@@ -207,9 +119,6 @@ export default function KnitGame() {
       const targetRow = getCurrentTargetRow(prev.currentPattern, prev.currentRowIndex);
       const expectedType = targetRow[prev.currentStitchIndex];
       const isCorrect = tappedType === expectedType;
-
-      setNeedleAnim(true);
-      setTimeout(() => setNeedleAnim(false), 150);
 
       const newStitch: Stitch = { type: tappedType, completed: true, correct: isCorrect };
       const newCurrentRow = [...prev.currentRowStitches, newStitch];
@@ -396,46 +305,54 @@ export default function KnitGame() {
         </div>
       </div>
 
-      {/* Main Area: Needles + Fabric + Yarn */}
+      {/* Main Area: Physics Yarn + Needles + Fabric */}
       <div ref={workAreaRef} className="flex-1 flex overflow-hidden relative" style={{ minHeight: 0 }}>
 
-        {/* Left Needle + Buttons */}
-        <div className="flex flex-col items-center justify-between py-2" style={{ width: needleWidth }}>
-          <NeedleSVG side="left" color={isColorwork ? yarnColor : yarnColor} animate={needleAnim} />
-          <div className="flex flex-col gap-1.5 mt-1">
-            {leftButtons.map(({ type: st, color: btnColor }) => {
-              const info = STITCH_INFO[st];
-              const isColorBtn = st === "color-a" || st === "color-b";
-              const displayColor = isColorBtn ? (st === "color-a" ? yarnColor : yarnColorB) : info.bgColor;
-              return (
-                <button
-                  key={st}
-                  onClick={() => handleStitch(st)}
-                  className="active:scale-90 transition-transform duration-100 rounded-lg shadow-md flex flex-col items-center gap-0.5 p-1.5 border border-white/40"
-                  style={{ backgroundColor: displayColor, width: 52 }}
-                >
-                  <StitchSVG type={st} size={20} color="#ffffff" colorA={yarnColor} colorB={yarnColorB} />
-                  <span className="text-[8px] font-bold text-white drop-shadow-sm leading-none">
-                    {isColorBtn ? (st === "color-a" ? "Col A" : "Col B") : info.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+        {/* Verlet Yarn Physics Canvas — renders needles + yarn ropes */}
+        <YarnPhysics
+          startX={25}
+          startY={15}
+          endX={needleWidth + activeStitchX}
+          endY={70}
+          color={yarnColor}
+          thickness={4}
+          segments={14}
+          gravity={0.12}
+          tension={0.65}
+          width={maxWidth}
+          height={80}
+          secondaryColor={isColorwork ? yarnColorB : (rightButtons.length > 0 ? yarnColor : undefined)}
+          secondaryStartX={rightButtons.length > 0 || isColorwork ? maxWidth - 25 : undefined}
+          secondaryStartY={15}
+          secondaryEndX={rightButtons.length > 0 || isColorwork ? needleWidth + activeStitchX : undefined}
+          secondaryEndY={70}
+        />
+
+        {/* Left Buttons */}
+        <div className="flex flex-col items-center justify-end gap-1.5 px-0.5 py-2" style={{ width: needleWidth, zIndex: 20, marginTop: 80 }}>
+          {leftButtons.map(({ type: st }) => {
+            const info = STITCH_INFO[st];
+            const isColorBtn = st === "color-a" || st === "color-b";
+            const displayColor = isColorBtn ? (st === "color-a" ? yarnColor : yarnColorB) : info.bgColor;
+            return (
+              <button
+                key={st}
+                onClick={() => handleStitch(st)}
+                className="active:scale-90 transition-transform duration-100 rounded-lg shadow-md flex flex-col items-center gap-0.5 p-1.5 border border-white/40"
+                style={{ backgroundColor: displayColor, width: 52 }}
+              >
+                <StitchSVG type={st} size={20} color="#ffffff" colorA={yarnColor} colorB={yarnColorB} />
+                <span className="text-[8px] font-bold text-white drop-shadow-sm leading-none">
+                  {isColorBtn ? (st === "color-a" ? "Col A" : "Col B") : info.label}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Fabric Area with yarn strand overlay */}
+        {/* Fabric Area */}
         <div className="flex-1 relative overflow-hidden" style={{ minHeight: 0 }}>
-          {/* Yarn strand from top (needle) to active stitch */}
-          <YarnStrand
-            color={isColorwork ? yarnColor : yarnColor}
-            fromX={0}
-            toX={activeStitchX}
-            height={40}
-          />
-
-          {/* Fabric scroll */}
-          <div ref={fabricRef} className="absolute inset-0 overflow-y-auto pt-10 pb-1">
+          <div ref={fabricRef} className="absolute inset-0 overflow-y-auto pt-2 pb-1" style={{ top: 80 }}>
             {/* Floating scores */}
             {game.floatingScores.map((fs) => (
               <div key={fs.id} className="score-fly absolute text-amber-500 font-bold text-sm pointer-events-none z-10" style={{ left: `${fs.x}%`, top: `${fs.y}%` }}>
@@ -445,7 +362,7 @@ export default function KnitGame() {
 
             {game.completedRows.length === 0 && game.currentRowStitches.length === 0 && (
               <div className="flex items-center justify-center h-full text-amber-300 text-xs italic px-4 text-center">
-                Tap a stitch on the needles to begin!
+                Tap a stitch to begin!
               </div>
             )}
 
@@ -469,7 +386,6 @@ export default function KnitGame() {
                     <StitchSVG type={stitch.type} size={stitchCellSize - 8} color={stitch.correct ? yarnColor : "#e05050"} colorA={yarnColor} colorB={yarnColorB} />
                   </div>
                 ))}
-                {/* Active stitch indicator */}
                 {game.currentRowStitches.length < game.currentPattern.width && (
                   <>
                     <div className="rounded-sm border-2 border-amber-400 bg-amber-50/50 flex items-center justify-center" style={{ width: stitchCellSize - 2, height: stitchCellSize - 2 }}>
@@ -483,39 +399,26 @@ export default function KnitGame() {
               </div>
             )}
           </div>
-
-          {/* Second yarn strand from right needle */}
-          {rightButtons.length > 0 && (
-            <YarnStrand
-              color={yarnColor}
-              fromX={fabricWidth}
-              toX={activeStitchX}
-              height={40}
-            />
-          )}
         </div>
 
-        {/* Right Needle + Buttons */}
-        <div className="flex flex-col items-center justify-between py-2" style={{ width: needleWidth }}>
-          <NeedleSVG side="right" color={isColorwork ? yarnColorB : yarnColor} animate={needleAnim} />
-          <div className="flex flex-col gap-1.5 mt-1">
-            {rightButtons.map(({ type: st }) => {
-              const info = STITCH_INFO[st];
-              return (
-                <button
-                  key={st}
-                  onClick={() => handleStitch(st)}
-                  className="active:scale-90 transition-transform duration-100 rounded-lg shadow-md flex flex-col items-center gap-0.5 p-1.5 border border-white/40"
-                  style={{ backgroundColor: info.bgColor, width: 52 }}
-                >
-                  <StitchSVG type={st} size={20} color="#ffffff" />
-                  <span className="text-[8px] font-bold text-white drop-shadow-sm leading-none">
-                    {info.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+        {/* Right Buttons */}
+        <div className="flex flex-col items-center justify-end gap-1.5 px-0.5 py-2" style={{ width: needleWidth, zIndex: 20, marginTop: 80 }}>
+          {rightButtons.map(({ type: st }) => {
+            const info = STITCH_INFO[st];
+            return (
+              <button
+                key={st}
+                onClick={() => handleStitch(st)}
+                className="active:scale-90 transition-transform duration-100 rounded-lg shadow-md flex flex-col items-center gap-0.5 p-1.5 border border-white/40"
+                style={{ backgroundColor: info.bgColor, width: 52 }}
+              >
+                <StitchSVG type={st} size={20} color="#ffffff" />
+                <span className="text-[8px] font-bold text-white drop-shadow-sm leading-none">
+                  {info.label}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
