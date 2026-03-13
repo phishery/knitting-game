@@ -452,18 +452,18 @@ export default function KnitGame() {
 
       {/* Top Bar: Title + Stats + Pattern Selector */}
       <div style={{
-        padding: '8px 12px 4px',
+        padding: '10px 14px 6px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         flexShrink: 0,
       }}>
         <div>
           <div style={{
-            fontSize: 18, fontWeight: 400, color: '#4A3A2A',
+            fontSize: 24, fontWeight: 500, color: '#4A3A2A',
             letterSpacing: 4, fontVariant: 'small-caps', lineHeight: 1,
           }}>knitcraft</div>
         </div>
 
-        <div style={{ display: 'flex', gap: 14, fontSize: 11, color: '#7B6B5B', letterSpacing: 0.5 }}>
+        <div style={{ display: 'flex', gap: 14, fontSize: 15, color: '#7B6B5B', letterSpacing: 0.5 }}>
           <span><b style={{ color: '#4A3A2A' }}>{totalRows}</b> rows</span>
           <span><b style={{ color: '#4A3A2A' }}>{score}</b> pts</span>
           {streak > 1 && <span style={{ color: '#B44D3A' }}>x{streak}</span>}
@@ -471,8 +471,8 @@ export default function KnitGame() {
 
         <div style={{ position: 'relative' }}>
           <button onClick={() => setShowMenu(!showMenu)} style={{
-            background: '#FBF7F1', border: '1px solid #D4C4B0', borderRadius: 5,
-            padding: '4px 10px', fontSize: 10, color: '#4A3A2A', cursor: 'pointer',
+            background: '#FBF7F1', border: '1px solid #D4C4B0', borderRadius: 8,
+            padding: '6px 14px', fontSize: 14, color: '#4A3A2A', cursor: 'pointer',
             letterSpacing: 0.8, fontFamily: 'inherit',
           }}>{PATTERNS[patIdx].name} &#9662;</button>
           {showMenu && (
@@ -485,14 +485,14 @@ export default function KnitGame() {
                 <div key={i}
                   onClick={() => { changePattern(i); setShowMenu(false); }}
                   style={{
-                    padding: '6px 10px', fontSize: 11, borderRadius: 3, cursor: 'pointer',
+                    padding: '8px 12px', fontSize: 14, borderRadius: 5, cursor: 'pointer',
                     color: i === patIdx ? '#B44D3A' : '#4A3A2A',
                     fontWeight: i === patIdx ? 600 : 400,
                   }}
                   onMouseEnter={e => (e.currentTarget.style.background = '#EDE2D4')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                   <div>{p.name}</div>
-                  <div style={{ fontSize: 9, color: '#9B8B7B' }}>{p.desc}</div>
+                  <div style={{ fontSize: 12, color: '#9B8B7B' }}>{p.desc}</div>
                 </div>
               ))}
             </div>
@@ -514,7 +514,7 @@ export default function KnitGame() {
 
       {/* Direction + Stitch Count */}
       <div style={{
-        display: 'flex', justifyContent: 'center', gap: 8, fontSize: 10,
+        display: 'flex', justifyContent: 'center', gap: 10, fontSize: 14,
         color: '#8B7B6B', marginBottom: 2, flexShrink: 0,
       }}>
         <span>{dir === 1 ? '\u2192' : '\u2190'} Stitch {curIdx + 1} of {COLS}</span>
