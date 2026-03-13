@@ -536,7 +536,7 @@ export default function KnitGame() {
 
       {/* Middle: Canvas + Yarn Colors */}
       <div style={{
-        flex: 1, display: 'flex', gap: 6,
+        flex: '1 1 0', display: 'flex', gap: 6,
         minHeight: 0, padding: '0 4px',
         overflow: 'hidden',
       }}>
@@ -594,8 +594,8 @@ export default function KnitGame() {
         {/* Yarn Palette */}
         <div style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center',
-          gap: 4, padding: '4px 2px', flexShrink: 0, width: 44,
-          justifyContent: 'flex-start',
+          gap: 3, padding: '4px 2px', flexShrink: 0, width: 44,
+          justifyContent: 'flex-start', overflowY: 'auto', minHeight: 0,
         }}>
           <div style={{ fontSize: 8, color: '#8B7B6B', letterSpacing: 1, marginBottom: 1 }}>YARN</div>
           {PALETTE.map((c, i) => (
@@ -656,13 +656,12 @@ export default function KnitGame() {
 
       {/* Bottom: 2x2 Action Buttons */}
       <div style={{
-        padding: '6px 10px 14px',
+        padding: '6px 10px max(14px, env(safe-area-inset-bottom, 14px))',
         flexShrink: 0,
       }}>
         <div style={{
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
-          gridTemplateRows: 'auto auto',
           gap: 8,
           maxWidth: 400,
           margin: '0 auto',
