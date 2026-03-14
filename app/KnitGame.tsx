@@ -8,7 +8,7 @@ import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 
 const STITCH_W = 22;
 const STITCH_H = 28;
-const YARN_W = 6.5;
+const YARN_W = 8;
 const COLS = 20;
 const MAX_ROWS = 15;
 const NEEDLE_OVERHANG = 20;
@@ -48,80 +48,62 @@ function YarnTube({ d, ci, opacity = 1, wm = 1 }: { d: string; ci: number; opaci
   );
 }
 
-// --- Knit Loop Geometry (interlocking U-loops) ---
-const LEG_HW = STITCH_W * 0.36;
+// --- Knit Stitch Geometry (tight interlocking V's) ---
+// Wide at top, meeting at bottom point, tightly packed
+const LEG_HW = STITCH_W * 0.46;  // wide — legs nearly touch neighbors
 const LEG_TOP = STITCH_H * 0.42;
 const LEG_BOT = STITCH_H * 0.12;
 const U_DEPTH = STITCH_H * 0.42;
+const BOT_HW = STITCH_W * 0.06;  // legs nearly meet at bottom
 
-// Upper legs — tuck behind the row above
-function knitLeftLegUpper(cx: number, cy: number) {
-  const topX = cx - LEG_HW + STITCH_W * 0.02;
+function knitLeftLeg(cx: number, cy: number) {
+  const topX = cx - LEG_HW;
   const topY = cy - LEG_TOP;
-  const midX = cx - LEG_HW * 0.75;
-  const midY = cy - STITCH_H * 0.08;
+  const botX = cx - BOT_HW;
+  const botY = cy + STITCH_H * 0.38;
   return `M ${topX} ${topY}
-    C ${topX - STITCH_W * 0.03} ${cy - LEG_TOP * 0.4},
-      ${midX - STITCH_W * 0.02} ${midY - STITCH_H * 0.12},
-      ${midX} ${midY}`;
-}
-
-function knitRightLegUpper(cx: number, cy: number) {
-  const topX = cx + LEG_HW - STITCH_W * 0.02;
-  const topY = cy - LEG_TOP;
-  const midX = cx + LEG_HW * 0.75;
-  const midY = cy - STITCH_H * 0.08;
-  return `M ${topX} ${topY}
-    C ${topX + STITCH_W * 0.03} ${cy - LEG_TOP * 0.4},
-      ${midX + STITCH_W * 0.02} ${midY - STITCH_H * 0.12},
-      ${midX} ${midY}`;
-}
-
-// Lower legs — visible V portion
-function knitLeftLegLower(cx: number, cy: number) {
-  const midX = cx - LEG_HW * 0.75;
-  const midY = cy - STITCH_H * 0.08;
-  const botX = cx - LEG_HW * 0.45;
-  const botY = cy + LEG_BOT;
-  return `M ${midX} ${midY}
-    C ${midX - STITCH_W * 0.01} ${midY + STITCH_H * 0.08},
-      ${botX - STITCH_W * 0.02} ${botY - STITCH_H * 0.06},
+    C ${topX + STITCH_W * 0.02} ${cy - LEG_TOP * 0.15},
+      ${botX - STITCH_W * 0.06} ${cy + STITCH_H * 0.10},
       ${botX} ${botY}`;
 }
 
-function knitRightLegLower(cx: number, cy: number) {
-  const midX = cx + LEG_HW * 0.75;
-  const midY = cy - STITCH_H * 0.08;
-  const botX = cx + LEG_HW * 0.45;
-  const botY = cy + LEG_BOT;
-  return `M ${midX} ${midY}
-    C ${midX + STITCH_W * 0.01} ${midY + STITCH_H * 0.08},
-      ${botX + STITCH_W * 0.02} ${botY - STITCH_H * 0.06},
-      ${botX} ${botY}`;
+function knitRightLeg(cx: number, cy: number) {
+  const topX = cx + LEG_HW;
+  const topY = cy - LEG_TOP;
+  const botX = cx + BOT_HW;
+  const botY = cy + STITCH_H * 0.38;
+  return `M ${botX} ${botY}
+    C ${botX + STITCH_W * 0.06} ${cy + STITCH_H * 0.10},
+      ${topX - STITCH_W * 0.02} ${cy - LEG_TOP * 0.15},
+      ${topX} ${topY}`;
 }
 
-function knitBottomU(cx: number, cy: number) {
-  // Tiny connector between leg bottoms
-  const lx = cx - LEG_HW * 0.45;
-  const rx = cx + LEG_HW * 0.45;
-  const sy = cy + LEG_BOT;
-  const dy = sy + STITCH_H * 0.04;
-  return `M ${lx} ${sy}
-    Q ${cx} ${dy + STITCH_H * 0.02},
-      ${rx} ${sy}`;
+// Bottom tails — two close parallel strands extending down, tuck under row below
+function knitLeftTail(cx: number, cy: number) {
+  const startX = cx - BOT_HW;
+  const startY = cy + STITCH_H * 0.38;
+  const endX = cx - STITCH_W * 0.05;
+  const endY = cy + STITCH_H * 0.62;
+  return `M ${startX} ${startY} L ${endX} ${endY}`;
 }
 
+function knitRightTail(cx: number, cy: number) {
+  const startX = cx + BOT_HW;
+  const startY = cy + STITCH_H * 0.38;
+  const endX = cx + STITCH_W * 0.05;
+  const endY = cy + STITCH_H * 0.62;
+  return `M ${startX} ${startY} L ${endX} ${endY}`;
+}
+
+// Top arc — connects leg tops, tucks behind the row above
 function knitTopArc(cx: number, cy: number) {
-  const lx = cx - LEG_HW + STITCH_W * 0.04;
-  const rx = cx + LEG_HW - STITCH_W * 0.04;
+  const lx = cx - LEG_HW;
+  const rx = cx + LEG_HW;
   const topY = cy - LEG_TOP;
-  const peakY = topY - STITCH_H * 0.22;
+  const peakY = topY - STITCH_H * 0.18;
   return `M ${lx} ${topY}
-    C ${lx + STITCH_W * 0.04} ${peakY + STITCH_H * 0.04},
-      ${cx - STITCH_W * 0.08} ${peakY},
-      ${cx} ${peakY - STITCH_H * 0.01}
-    C ${cx + STITCH_W * 0.08} ${peakY},
-      ${rx - STITCH_W * 0.04} ${peakY + STITCH_H * 0.04},
+    C ${lx + STITCH_W * 0.12} ${peakY},
+      ${rx - STITCH_W * 0.12} ${peakY},
       ${rx} ${topY}`;
 }
 
@@ -234,12 +216,11 @@ const STITCH_DEFS: StitchDef[] = [
     id: KNIT, label: "KNIT", shortLabel: "K",
     buttonBg: "currentColor", buttonText: "currentColor",
     renderParts: (cx, cy) => [
-      { layer: "behind", d: knitTopArc(cx, cy), opacityMult: 0.2, widthMult: 0.8 },
-      { layer: "behind", d: knitLeftLegUpper(cx, cy), opacityMult: 0.25, widthMult: 1.2 },
-      { layer: "behind", d: knitRightLegUpper(cx, cy), opacityMult: 0.25, widthMult: 1.2 },
-      { layer: "legs", d: knitLeftLegLower(cx, cy), opacityMult: 1, widthMult: 1.3 },
-      { layer: "legs", d: knitRightLegLower(cx, cy), opacityMult: 1, widthMult: 1.3 },
-      { layer: "bottomU", d: knitBottomU(cx, cy), opacityMult: 0.6, widthMult: 1.1 },
+      { layer: "behind", d: knitTopArc(cx, cy), opacityMult: 0.3, widthMult: 0.9 },
+      { layer: "legs", d: knitLeftLeg(cx, cy), opacityMult: 1, widthMult: 1.1 },
+      { layer: "legs", d: knitRightLeg(cx, cy), opacityMult: 1, widthMult: 1.1 },
+      { layer: "behind", d: knitLeftTail(cx, cy), opacityMult: 0.3, widthMult: 0.9 },
+      { layer: "behind", d: knitRightTail(cx, cy), opacityMult: 0.3, widthMult: 0.9 },
     ],
   },
   {
