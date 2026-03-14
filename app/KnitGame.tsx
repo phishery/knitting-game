@@ -55,38 +55,38 @@ const LEG_BOT = STITCH_H * 0.12;
 const U_DEPTH = STITCH_H * 0.42;
 
 function knitLeftLeg(cx: number, cy: number) {
-  const topX = cx - LEG_HW + STITCH_W * 0.04;
+  const topX = cx - LEG_HW + STITCH_W * 0.02;
   const topY = cy - LEG_TOP;
-  const botX = cx - LEG_HW;
+  const botX = cx - LEG_HW * 0.55;
   const botY = cy + LEG_BOT;
   return `M ${topX} ${topY}
-    C ${topX - STITCH_W * 0.06} ${cy - LEG_TOP * 0.3},
-      ${botX - STITCH_W * 0.04} ${cy + LEG_BOT * 0.2},
+    C ${topX - STITCH_W * 0.04} ${cy - LEG_TOP * 0.25},
+      ${botX - STITCH_W * 0.03} ${cy + LEG_BOT * 0.15},
       ${botX} ${botY}`;
 }
 
 function knitRightLeg(cx: number, cy: number) {
-  const topX = cx + LEG_HW - STITCH_W * 0.04;
+  const topX = cx + LEG_HW - STITCH_W * 0.02;
   const topY = cy - LEG_TOP;
-  const botX = cx + LEG_HW;
+  const botX = cx + LEG_HW * 0.55;
   const botY = cy + LEG_BOT;
   return `M ${botX} ${botY}
-    C ${botX + STITCH_W * 0.04} ${cy + LEG_BOT * 0.2},
-      ${topX + STITCH_W * 0.06} ${cy - LEG_TOP * 0.3},
+    C ${botX + STITCH_W * 0.03} ${cy + LEG_BOT * 0.15},
+      ${topX + STITCH_W * 0.04} ${cy - LEG_TOP * 0.25},
       ${topX} ${topY}`;
 }
 
 function knitBottomU(cx: number, cy: number) {
-  const lx = cx - LEG_HW;
-  const rx = cx + LEG_HW;
+  const lx = cx - LEG_HW * 0.55;
+  const rx = cx + LEG_HW * 0.55;
   const sy = cy + LEG_BOT;
-  const dy = cy + U_DEPTH;
+  const dy = cy + U_DEPTH * 0.85;
   return `M ${lx} ${sy}
-    C ${lx - STITCH_W * 0.02} ${sy + (dy - sy) * 0.65},
-      ${cx - LEG_HW * 0.45} ${dy + STITCH_H * 0.04},
-      ${cx} ${dy + STITCH_H * 0.03}
-    C ${cx + LEG_HW * 0.45} ${dy + STITCH_H * 0.04},
-      ${rx + STITCH_W * 0.02} ${sy + (dy - sy) * 0.65},
+    C ${lx - STITCH_W * 0.01} ${sy + (dy - sy) * 0.65},
+      ${cx - LEG_HW * 0.35} ${dy + STITCH_H * 0.03},
+      ${cx} ${dy + STITCH_H * 0.02}
+    C ${cx + LEG_HW * 0.35} ${dy + STITCH_H * 0.03},
+      ${rx + STITCH_W * 0.01} ${sy + (dy - sy) * 0.65},
       ${rx} ${sy}`;
 }
 
@@ -213,10 +213,10 @@ const STITCH_DEFS: StitchDef[] = [
     id: KNIT, label: "KNIT", shortLabel: "K",
     buttonBg: "currentColor", buttonText: "currentColor",
     renderParts: (cx, cy) => [
-      { layer: "topArc", d: knitTopArc(cx, cy), opacityMult: 0.35, widthMult: 0.78 },
-      { layer: "legs", d: knitLeftLeg(cx, cy), opacityMult: 1, widthMult: 1 },
-      { layer: "legs", d: knitRightLeg(cx, cy), opacityMult: 1, widthMult: 1 },
-      { layer: "bottomU", d: knitBottomU(cx, cy), opacityMult: 1, widthMult: 1.05 },
+      { layer: "topArc", d: knitTopArc(cx, cy), opacityMult: 0.35, widthMult: 0.85 },
+      { layer: "legs", d: knitLeftLeg(cx, cy), opacityMult: 1, widthMult: 1.3 },
+      { layer: "legs", d: knitRightLeg(cx, cy), opacityMult: 1, widthMult: 1.3 },
+      { layer: "bottomU", d: knitBottomU(cx, cy), opacityMult: 1, widthMult: 1.35 },
     ],
   },
   {
