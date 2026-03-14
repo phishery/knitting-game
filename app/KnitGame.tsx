@@ -16,6 +16,8 @@ const CANVAS_W = STITCH_W * COLS + NEEDLE_OVERHANG * 2;
 const TOP_PAD = 10;
 const KNIT = 0;
 const PURL = 1;
+const YO = 2;
+const SLIP = 3;
 
 const PALETTE = [
   { name: "Natural",  hex: "#E8D5B5", shadow: "#B8A070", hi: "#F7EDD8" },
@@ -149,6 +151,112 @@ function purlBottomU(cx: number, cy: number) {
     C ${cx - hw * 0.4} ${dy}, ${cx + hw * 0.4} ${dy}, ${cx + hw} ${bs}`;
 }
 
+// --- Yarn Over Geometry (eyelet hole) ---
+function yoTopArc(cx: number, cy: number) {
+  const hw = STITCH_W * 0.42;
+  const topY = cy - STITCH_H * 0.18;
+  const peakY = topY - STITCH_H * 0.10;
+  return `M ${cx - hw} ${topY}
+    C ${cx - hw * 0.3} ${peakY}, ${cx + hw * 0.3} ${peakY}, ${cx + hw} ${topY}`;
+}
+
+function yoEllipse(cx: number, cy: number) {
+  const rx = STITCH_W * 0.30;
+  const ry = STITCH_H * 0.22;
+  return `M ${cx - rx} ${cy}
+    A ${rx} ${ry} 0 1 1 ${cx + rx} ${cy}
+    A ${rx} ${ry} 0 1 1 ${cx - rx} ${cy} Z`;
+}
+
+// --- Slip Stitch Geometry (elongated) ---
+function slipLeftLeg(cx: number, cy: number) {
+  const topX = cx - LEG_HW * 0.6 + STITCH_W * 0.02;
+  const topY = cy - STITCH_H * 0.62;
+  const botX = cx - LEG_HW * 0.6;
+  const botY = cy + STITCH_H * 0.30;
+  return `M ${topX} ${topY}
+    C ${topX - STITCH_W * 0.02} ${cy - STITCH_H * 0.2},
+      ${botX - STITCH_W * 0.02} ${cy + STITCH_H * 0.1},
+      ${botX} ${botY}`;
+}
+
+function slipRightLeg(cx: number, cy: number) {
+  const topX = cx + LEG_HW * 0.6 - STITCH_W * 0.02;
+  const topY = cy - STITCH_H * 0.62;
+  const botX = cx + LEG_HW * 0.6;
+  const botY = cy + STITCH_H * 0.30;
+  return `M ${botX} ${botY}
+    C ${botX + STITCH_W * 0.02} ${cy + STITCH_H * 0.1},
+      ${topX + STITCH_W * 0.02} ${cy - STITCH_H * 0.2},
+      ${topX} ${topY}`;
+}
+
+// --- Stitch Registry ---
+interface StitchPart {
+  layer: string;
+  d: string;
+  opacityMult: number;
+  widthMult: number;
+}
+
+interface StitchDef {
+  id: number;
+  label: string;
+  shortLabel: string;
+  buttonBg: string;
+  buttonText: string;
+  renderParts: (cx: number, cy: number) => StitchPart[];
+}
+
+const STITCH_DEFS: StitchDef[] = [
+  {
+    id: KNIT, label: "KNIT", shortLabel: "K",
+    buttonBg: "currentColor", buttonText: "currentColor",
+    renderParts: (cx, cy) => [
+      { layer: "topArc", d: knitTopArc(cx, cy), opacityMult: 0.35, widthMult: 0.78 },
+      { layer: "legs", d: knitLeftLeg(cx, cy), opacityMult: 1, widthMult: 1 },
+      { layer: "legs", d: knitRightLeg(cx, cy), opacityMult: 1, widthMult: 1 },
+      { layer: "bottomU", d: knitBottomU(cx, cy), opacityMult: 1, widthMult: 1.05 },
+    ],
+  },
+  {
+    id: PURL, label: "PURL", shortLabel: "P",
+    buttonBg: "linear-gradient(180deg, #6B5B4B 0%, #5A4A3A 100%)",
+    buttonText: "#F5EDE3",
+    renderParts: (cx, cy) => [
+      { layer: "topArc", d: purlTopArc(cx, cy), opacityMult: 0.25, widthMult: 0.65 },
+      { layer: "behind", d: purlLeftLeg(cx, cy), opacityMult: 0.28, widthMult: 0.68 },
+      { layer: "behind", d: purlRightLeg(cx, cy), opacityMult: 0.28, widthMult: 0.68 },
+      { layer: "behind", d: purlBottomU(cx, cy), opacityMult: 0.25, widthMult: 0.65 },
+      { layer: "front", d: purlBumpBack(cx, cy), opacityMult: 0.28, widthMult: 0.62 },
+      { layer: "front", d: purlBumpFront(cx, cy), opacityMult: 1, widthMult: 1.15 },
+    ],
+  },
+  {
+    id: YO, label: "YARN OVER", shortLabel: "O",
+    buttonBg: "linear-gradient(180deg, #A09080 0%, #887868 100%)",
+    buttonText: "#F5EDE3",
+    renderParts: (cx, cy) => [
+      { layer: "topArc", d: yoTopArc(cx, cy), opacityMult: 0.5, widthMult: 0.7 },
+      { layer: "front", d: yoEllipse(cx, cy), opacityMult: 0.18, widthMult: 0.5 },
+    ],
+  },
+  {
+    id: SLIP, label: "SLIP", shortLabel: "S",
+    buttonBg: "linear-gradient(180deg, #8B7B6B 0%, #6B5B4B 100%)",
+    buttonText: "#F5EDE3",
+    renderParts: (cx, cy) => [
+      { layer: "legs", d: slipLeftLeg(cx, cy), opacityMult: 1, widthMult: 0.85 },
+      { layer: "legs", d: slipRightLeg(cx, cy), opacityMult: 1, widthMult: 0.85 },
+    ],
+  },
+];
+
+const STITCH_PAIRS = [
+  [KNIT, PURL],
+  [YO, SLIP],
+];
+
 // --- Needles ---
 function Needle({ y, variant }: { y: number; variant: "front" | "back" }) {
   const x1 = 1, x2 = CANVAS_W - 1;
@@ -177,11 +285,9 @@ interface StitchData {
 
 function FabricRow({ stitches, y, animIdx = -1 }: { stitches: (StitchData | null)[]; y: number; animIdx?: number }) {
   const baseX = NEEDLE_OVERHANG;
-  const topArcs: React.ReactNode[] = [];
-  const legs: React.ReactNode[] = [];
-  const bottomUs: React.ReactNode[] = [];
-  const purlBehind: React.ReactNode[] = [];
-  const purlFront: React.ReactNode[] = [];
+  const layerMap: Record<string, React.ReactNode[]> = {
+    topArc: [], behind: [], legs: [], bottomU: [], front: [],
+  };
 
   for (let i = 0; i < stitches.length; i++) {
     const s = stitches[i];
@@ -190,39 +296,26 @@ function FabricRow({ stitches, y, animIdx = -1 }: { stitches: (StitchData | null
     const cy = y + STITCH_H / 2;
     const ci = s.color;
     const op = i === animIdx ? 0.45 : 1;
-
-    if (s.type === PURL) {
-      purlBehind.push(
-        <YarnTube key={`pta-${i}`} d={purlTopArc(cx, cy)} ci={ci} opacity={op * 0.25} wm={0.65} />,
-        <YarnTube key={`pll-${i}`} d={purlLeftLeg(cx, cy)} ci={ci} opacity={op * 0.28} wm={0.68} />,
-        <YarnTube key={`plr-${i}`} d={purlRightLeg(cx, cy)} ci={ci} opacity={op * 0.28} wm={0.68} />,
-        <YarnTube key={`pbu-${i}`} d={purlBottomU(cx, cy)} ci={ci} opacity={op * 0.25} wm={0.65} />
-      );
-      purlFront.push(
-        <YarnTube key={`pbb-${i}`} d={purlBumpBack(cx, cy)} ci={ci} opacity={op * 0.28} wm={0.62} />,
-        <YarnTube key={`pbf-${i}`} d={purlBumpFront(cx, cy)} ci={ci} opacity={op} wm={1.15} />
-      );
-    } else {
-      topArcs.push(
-        <YarnTube key={`ta-${i}`} d={knitTopArc(cx, cy)} ci={ci} opacity={op * 0.35} wm={0.78} />
-      );
-      legs.push(
-        <YarnTube key={`ll-${i}`} d={knitLeftLeg(cx, cy)} ci={ci} opacity={op} />,
-        <YarnTube key={`rl-${i}`} d={knitRightLeg(cx, cy)} ci={ci} opacity={op} />
-      );
-      bottomUs.push(
-        <YarnTube key={`bu-${i}`} d={knitBottomU(cx, cy)} ci={ci} opacity={op} wm={1.05} />
-      );
+    const def = STITCH_DEFS[s.type] || STITCH_DEFS[0];
+    const parts = def.renderParts(cx, cy);
+    for (let p = 0; p < parts.length; p++) {
+      const part = parts[p];
+      if (layerMap[part.layer]) {
+        layerMap[part.layer].push(
+          <YarnTube key={`${part.layer}-${i}-${p}`} d={part.d} ci={ci}
+            opacity={op * part.opacityMult} wm={part.widthMult} />
+        );
+      }
     }
   }
 
   return (
     <g>
-      {topArcs}
-      {purlBehind}
-      {legs}
-      {bottomUs}
-      {purlFront}
+      {layerMap.topArc}
+      {layerMap.behind}
+      {layerMap.legs}
+      {layerMap.bottomU}
+      {layerMap.front}
     </g>
   );
 }
@@ -248,6 +341,15 @@ function PatternPreview({ pattern, currentRow }: { pattern: StitchData[][]; curr
             {s.type === PURL && (
               <line x1={ci * cell + 1.5} y1={ri * cell + cell / 2 + 1}
                 x2={ci * cell + cell - 0.5} y2={ri * cell + cell / 2 + 1}
+                stroke="rgba(0,0,0,0.25)" strokeWidth={0.6} />
+            )}
+            {s.type === YO && (
+              <circle cx={ci * cell + cell / 2 + 1} cy={ri * cell + cell / 2 + 1}
+                r={cell * 0.3} fill="none" stroke="rgba(0,0,0,0.3)" strokeWidth={0.5} />
+            )}
+            {s.type === SLIP && (
+              <line x1={ci * cell + cell / 2 + 1} y1={ri * cell + 1.5}
+                x2={ci * cell + cell / 2 + 1} y2={ri * cell + cell - 0.5}
                 stroke="rgba(0,0,0,0.25)" strokeWidth={0.6} />
             )}
           </g>
@@ -309,6 +411,16 @@ const PATTERNS = [
     }
   },
   {
+    name: "Lace", desc: "Eyelet pattern",
+    generate: (R: number, C: number) => Array.from({ length: R }, (_, r) =>
+      Array.from({ length: C }, (_, c) => ({
+        color: 0,
+        type: r % 4 === 0 && c % 4 === 2 ? YO
+            : r % 4 === 2 && c % 4 === 0 ? YO
+            : KNIT,
+      })))
+  },
+  {
     name: "Hearts", desc: "Heart motif",
     generate: (R: number, C: number) => {
       const m = [
@@ -346,6 +458,7 @@ export default function KnitGame() {
   const [dir, setDir] = useState(1);
   const [showMenu, setShowMenu] = useState(false);
   const [history, setHistory] = useState<HistoryState[]>([]);
+  const [stitchPairIndex, setStitchPairIndex] = useState(0);
   const svgContainerRef = useRef<HTMLDivElement>(null);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
@@ -556,7 +669,7 @@ export default function KnitGame() {
                 background: nextColor?.hex, border: '1.5px solid #C8BA9C',
                 verticalAlign: 'middle',
               }} />
-              <b>{nextType === PURL ? 'P' : 'K'}</b>
+              <b>{(STITCH_DEFS[nextType ?? 0] || STITCH_DEFS[0]).shortLabel}</b>
             </span>
           </>
         )}
@@ -566,17 +679,22 @@ export default function KnitGame() {
       {pattern.length > 0 && (() => {
         const rowData = pattern[totalRows % pattern.length];
         if (!rowData) return null;
-        // In reverse direction, display the row reversed
-        const displayRow = dir === 1 ? rowData : [...rowData].reverse();
+        // Always show the row in grid order (left=col0, right=col19)
+        // but track progress in the knitting direction
         return (
           <div style={{
             display: 'flex', alignItems: 'center', gap: 2,
             padding: '4px 12px', flexShrink: 0,
             overflowX: 'auto', justifyContent: 'center',
           }}>
-            {displayRow.map((s, i) => {
-              const done = i < curIdx;
-              const isCurrent = i === curIdx;
+            {dir === -1 && <span style={{ fontSize: 14, color: '#B44D3A', marginRight: 4, flexShrink: 0 }}>&lsaquo;</span>}
+            {rowData.map((s, i) => {
+              // actualStitchCol is the column being worked for each curIdx step
+              // dir=1: curIdx 0→col 0, 1→col 1, etc. (left to right)
+              // dir=-1: curIdx 0→col 19, 1→col 18, etc. (right to left)
+              const colForStep = dir === 1 ? curIdx : COLS - 1 - curIdx;
+              const done = dir === 1 ? i < colForStep : i > colForStep;
+              const isCurrent = i === colForStep;
               const c = PALETTE[s.color] || PALETTE[0];
               return (
                 <div key={i} style={{
@@ -601,12 +719,13 @@ export default function KnitGame() {
                       color: [0, 1, 5, 6, 8].includes(s.color) ? '#3A2A1A' : '#FFF',
                       lineHeight: 1,
                     }}>
-                      {s.type === PURL ? 'P' : 'K'}
+                      {(STITCH_DEFS[s.type] || STITCH_DEFS[0]).shortLabel}
                     </span>
                   </div>
                 </div>
               );
             })}
+            {dir === 1 && <span style={{ fontSize: 14, color: '#B44D3A', marginLeft: 4, flexShrink: 0 }}>&rsaquo;</span>}
           </div>
         );
       })()}
@@ -816,7 +935,7 @@ export default function KnitGame() {
         </div>
       )}
 
-      {/* Bottom: 2x2 Action Buttons */}
+      {/* Bottom: 2x2 Action Buttons with stitch pair drum */}
       <div style={{
         padding: '6px 10px max(14px, env(safe-area-inset-bottom, 14px))',
         flexShrink: 0,
@@ -828,7 +947,7 @@ export default function KnitGame() {
           maxWidth: 400,
           margin: '0 auto',
         }}>
-          {/* Top row: PURL buttons */}
+          {/* Top row: COLOR prev + stitch top */}
           <button
             onClick={() => { setSelColor(c => (c - 1 + PALETTE.length) % PALETTE.length); }}
             style={{
@@ -847,25 +966,57 @@ export default function KnitGame() {
             <span style={{ fontSize: 12, letterSpacing: 0.5, fontWeight: 500 }}>COLOR</span>
           </button>
 
-          <button
-            onClick={() => doStitch(PURL)}
-            style={{
-              height: 56, borderRadius: 12,
-              background: `linear-gradient(180deg, #6B5B4B 0%, #5A4A3A 100%)`,
-              border: '1.5px solid #4A3A2A',
-              cursor: 'pointer', fontSize: 15, color: '#F5EDE3',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              boxShadow: '0 3px 8px rgba(74,58,42,0.20)',
-              fontFamily: 'inherit', letterSpacing: 2, fontWeight: 400,
-              WebkitTapHighlightColor: 'transparent',
-              touchAction: 'manipulation',
-            }}
-          >
-            <span style={{ fontSize: 10, opacity: 0.7 }}>&#9552;&#9552;&#9552;</span>
-            <span>PURL</span>
-          </button>
+          {(() => {
+            const pair = STITCH_PAIRS[stitchPairIndex];
+            const topDef = STITCH_DEFS[pair[1]];
+            const topBg = topDef.buttonBg === "currentColor"
+              ? `linear-gradient(180deg, ${PALETTE[selColor].hex} 0%, ${PALETTE[selColor].shadow} 100%)`
+              : topDef.buttonBg;
+            const topBorder = topDef.buttonBg === "currentColor"
+              ? `1.5px solid ${PALETTE[selColor].shadow}`
+              : '1.5px solid #4A3A2A';
+            const topColor = topDef.buttonText === "currentColor"
+              ? ([0, 1, 5, 6, 8].includes(selColor) ? '#3A2A1A' : '#F5EDE3')
+              : topDef.buttonText;
+            return (
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button
+                  onClick={() => doStitch(topDef.id)}
+                  style={{
+                    flex: 1, height: 56, borderRadius: 12,
+                    background: topBg,
+                    border: topBorder,
+                    cursor: 'pointer', fontSize: 15, color: topColor,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    boxShadow: '0 3px 8px rgba(74,58,42,0.20)',
+                    fontFamily: 'inherit', letterSpacing: 2, fontWeight: 400,
+                    WebkitTapHighlightColor: 'transparent',
+                    touchAction: 'manipulation',
+                  }}
+                >
+                  <span>{topDef.label}</span>
+                </button>
+                <button
+                  onClick={() => setStitchPairIndex(pi => (pi - 1 + STITCH_PAIRS.length) % STITCH_PAIRS.length)}
+                  style={{
+                    width: 28, borderRadius: 8,
+                    background: 'linear-gradient(180deg, #E8DDD0 0%, #DDD0C0 100%)',
+                    border: '1px solid #C4B4A0',
+                    cursor: 'pointer', fontSize: 14, color: '#7B6B5B',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: 'inherit', padding: 0,
+                    WebkitTapHighlightColor: 'transparent',
+                    touchAction: 'manipulation',
+                  }}
+                  title="Previous stitch pair"
+                >
+                  &#9650;
+                </button>
+              </div>
+            );
+          })()}
 
-          {/* Bottom row: KNIT buttons */}
+          {/* Bottom row: COLOR next + stitch bottom */}
           <button
             onClick={() => { setSelColor(c => (c + 1) % PALETTE.length); }}
             style={{
@@ -884,24 +1035,56 @@ export default function KnitGame() {
             <span style={{ fontSize: 22 }}>&rsaquo;</span>
           </button>
 
-          <button
-            onClick={() => doStitch(KNIT)}
-            style={{
-              height: 56, borderRadius: 12,
-              background: `linear-gradient(180deg, ${PALETTE[selColor].hex} 0%, ${PALETTE[selColor].shadow} 100%)`,
-              border: `1.5px solid ${PALETTE[selColor].shadow}`,
-              cursor: 'pointer', fontSize: 15,
-              color: [0, 1, 5, 6, 8].includes(selColor) ? '#3A2A1A' : '#F5EDE3',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              boxShadow: `0 3px 8px ${PALETTE[selColor].shadow}44`,
-              fontFamily: 'inherit', letterSpacing: 2, fontWeight: 500,
-              WebkitTapHighlightColor: 'transparent',
-              touchAction: 'manipulation',
-            }}
-          >
-            <span style={{ fontSize: 14 }}>&or;</span>
-            <span>KNIT</span>
-          </button>
+          {(() => {
+            const pair = STITCH_PAIRS[stitchPairIndex];
+            const botDef = STITCH_DEFS[pair[0]];
+            const botBg = botDef.buttonBg === "currentColor"
+              ? `linear-gradient(180deg, ${PALETTE[selColor].hex} 0%, ${PALETTE[selColor].shadow} 100%)`
+              : botDef.buttonBg;
+            const botBorder = botDef.buttonBg === "currentColor"
+              ? `1.5px solid ${PALETTE[selColor].shadow}`
+              : '1.5px solid #4A3A2A';
+            const botColor = botDef.buttonText === "currentColor"
+              ? ([0, 1, 5, 6, 8].includes(selColor) ? '#3A2A1A' : '#F5EDE3')
+              : botDef.buttonText;
+            return (
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button
+                  onClick={() => doStitch(botDef.id)}
+                  style={{
+                    flex: 1, height: 56, borderRadius: 12,
+                    background: botBg,
+                    border: botBorder,
+                    cursor: 'pointer', fontSize: 15,
+                    color: botColor,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    boxShadow: `0 3px 8px rgba(74,58,42,0.15)`,
+                    fontFamily: 'inherit', letterSpacing: 2, fontWeight: 500,
+                    WebkitTapHighlightColor: 'transparent',
+                    touchAction: 'manipulation',
+                  }}
+                >
+                  <span>{botDef.label}</span>
+                </button>
+                <button
+                  onClick={() => setStitchPairIndex(pi => (pi + 1) % STITCH_PAIRS.length)}
+                  style={{
+                    width: 28, borderRadius: 8,
+                    background: 'linear-gradient(180deg, #E8DDD0 0%, #DDD0C0 100%)',
+                    border: '1px solid #C4B4A0',
+                    cursor: 'pointer', fontSize: 14, color: '#7B6B5B',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: 'inherit', padding: 0,
+                    WebkitTapHighlightColor: 'transparent',
+                    touchAction: 'manipulation',
+                  }}
+                  title="Next stitch pair"
+                >
+                  &#9660;
+                </button>
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>
