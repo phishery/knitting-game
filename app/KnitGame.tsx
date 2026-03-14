@@ -77,16 +77,17 @@ function knitRightLeg(cx: number, cy: number) {
 }
 
 function knitBottomU(cx: number, cy: number) {
+  // Tight loop at bottom of legs — nearly pinched closed
   const lx = cx - LEG_HW * 0.55;
   const rx = cx + LEG_HW * 0.55;
   const sy = cy + LEG_BOT;
-  const dy = cy + U_DEPTH * 0.85;
+  const dy = sy + STITCH_H * 0.10; // very shallow — just a small rounded bump
   return `M ${lx} ${sy}
-    C ${lx - STITCH_W * 0.01} ${sy + (dy - sy) * 0.65},
-      ${cx - LEG_HW * 0.35} ${dy + STITCH_H * 0.03},
+    C ${lx + LEG_HW * 0.05} ${dy},
+      ${cx - LEG_HW * 0.08} ${dy + STITCH_H * 0.02},
       ${cx} ${dy + STITCH_H * 0.02}
-    C ${cx + LEG_HW * 0.35} ${dy + STITCH_H * 0.03},
-      ${rx + STITCH_W * 0.01} ${sy + (dy - sy) * 0.65},
+    C ${cx + LEG_HW * 0.08} ${dy + STITCH_H * 0.02},
+      ${rx - LEG_HW * 0.05} ${dy},
       ${rx} ${sy}`;
 }
 
