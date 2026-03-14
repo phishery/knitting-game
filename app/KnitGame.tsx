@@ -33,17 +33,26 @@ const PALETTE = [
 ];
 
 // --- 3D Yarn Tube ---
-function YarnTube({ d, ci, opacity = 1, wm = 1 }: { d: string; ci: number; opacity?: number; wm?: number }) {
+// soft=true: no shadow/outline, just color — for parts flowing under other stitches
+function YarnTube({ d, ci, opacity = 1, wm = 1, soft = false }: { d: string; ci: number; opacity?: number; wm?: number; soft?: boolean }) {
   const c = PALETTE[ci] || PALETTE[0];
   const w = YARN_W * wm;
+  if (soft) {
+    return (
+      <g opacity={opacity}>
+        <path d={d} stroke={c.hex} strokeWidth={w}
+          strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      </g>
+    );
+  }
   return (
     <g opacity={opacity}>
-      <path d={d} stroke={c.shadow} strokeWidth={w + 2.5}
-        strokeLinecap="round" strokeLinejoin="round" fill="none" opacity={0.40} />
+      <path d={d} stroke={c.shadow} strokeWidth={w + 1.5}
+        strokeLinecap="butt" strokeLinejoin="round" fill="none" opacity={0.35} />
       <path d={d} stroke={c.hex} strokeWidth={w}
-        strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        strokeLinecap="butt" strokeLinejoin="round" fill="none" />
       <path d={d} stroke={c.hi} strokeWidth={w * 0.28}
-        strokeLinecap="round" strokeLinejoin="round" fill="none" opacity={0.45} />
+        strokeLinecap="butt" strokeLinejoin="round" fill="none" opacity={0.45} />
     </g>
   );
 }
@@ -78,21 +87,29 @@ function knitRightLeg(cx: number, cy: number) {
       ${topX} ${topY}`;
 }
 
-// Bottom tails — two close parallel strands extending down, tuck under row below
+// Bottom tails — curve outward to join neighboring stitch, behind foreground legs
+// Left tail curves from bottom-center outward to the LEFT (behind neighbor's right leg)
 function knitLeftTail(cx: number, cy: number) {
   const startX = cx - BOT_HW;
   const startY = cy + STITCH_H * 0.38;
-  const endX = cx - STITCH_W * 0.05;
-  const endY = cy + STITCH_H * 0.62;
-  return `M ${startX} ${startY} L ${endX} ${endY}`;
+  const endX = cx - STITCH_W * 0.50;
+  const endY = cy + STITCH_H * 0.58;
+  return `M ${startX} ${startY}
+    C ${startX - STITCH_W * 0.04} ${startY + STITCH_H * 0.08},
+      ${endX + STITCH_W * 0.08} ${endY - STITCH_H * 0.04},
+      ${endX} ${endY}`;
 }
 
+// Right tail curves from bottom-center outward to the RIGHT (behind neighbor's left leg)
 function knitRightTail(cx: number, cy: number) {
   const startX = cx + BOT_HW;
   const startY = cy + STITCH_H * 0.38;
-  const endX = cx + STITCH_W * 0.05;
-  const endY = cy + STITCH_H * 0.62;
-  return `M ${startX} ${startY} L ${endX} ${endY}`;
+  const endX = cx + STITCH_W * 0.50;
+  const endY = cy + STITCH_H * 0.58;
+  return `M ${startX} ${startY}
+    C ${startX + STITCH_W * 0.04} ${startY + STITCH_H * 0.08},
+      ${endX - STITCH_W * 0.08} ${endY - STITCH_H * 0.04},
+      ${endX} ${endY}`;
 }
 
 // Top arc — connects leg tops, tucks behind the row above
@@ -216,11 +233,11 @@ const STITCH_DEFS: StitchDef[] = [
     id: KNIT, label: "KNIT", shortLabel: "K",
     buttonBg: "currentColor", buttonText: "currentColor",
     renderParts: (cx, cy) => [
-      { layer: "behind", d: knitTopArc(cx, cy), opacityMult: 0.3, widthMult: 0.9 },
+      { layer: "topArc", d: knitTopArc(cx, cy), opacityMult: 0.3, widthMult: 0.9 },
+      { layer: "behind", d: knitLeftTail(cx, cy), opacityMult: 0.55, widthMult: 0.9 },
+      { layer: "behind", d: knitRightTail(cx, cy), opacityMult: 0.55, widthMult: 0.9 },
       { layer: "legs", d: knitLeftLeg(cx, cy), opacityMult: 1, widthMult: 1.1 },
       { layer: "legs", d: knitRightLeg(cx, cy), opacityMult: 1, widthMult: 1.1 },
-      { layer: "behind", d: knitLeftTail(cx, cy), opacityMult: 0.3, widthMult: 0.9 },
-      { layer: "behind", d: knitRightTail(cx, cy), opacityMult: 0.3, widthMult: 0.9 },
     ],
   },
   {
@@ -305,9 +322,10 @@ function FabricRow({ stitches, y, animIdx = -1 }: { stitches: (StitchData | null
     for (let p = 0; p < parts.length; p++) {
       const part = parts[p];
       if (layerMap[part.layer]) {
+        const isBehind = part.layer === "behind" || part.layer === "topArc";
         layerMap[part.layer].push(
           <YarnTube key={`${part.layer}-${i}-${p}`} d={part.d} ci={ci}
-            opacity={op * part.opacityMult} wm={part.widthMult} />
+            opacity={op * part.opacityMult} wm={part.widthMult} soft={isBehind} />
         );
       }
     }
